@@ -1,0 +1,35 @@
+{
+  "name": "kakashi3lite",
+  "version": "1.0.0",
+  "description": "TANAVADE_SWANAND_002774342",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://kakashi3lite@github.com/kakashi3lite/AED-Assignment2.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kakashi3lite/AED-Assignment2/issues"
+  },
+  "homepage": "https://github.com/kakashi3lite/AED-Assignment2#readme",
+  "dependencies": {
+    "@reduxjs/toolkit": "^1.9.0",
+    "@supabase/auth-ui-react": "^0.4.7",
+    "@supabase/auth-ui-shared": "^0.1.8",
+    "@supabase/supabase-js": "^2.49.4",
+    "claude": "^0.1.1",
+    "code": "^5.2.4",
+    "crypto-js": "^4.2.0",
+    "ejs": "^3.1.8",
+    "express": "^4.18.2",
+    "mongod": "^2.0.0",
+    "mongodb": "^4.11.0",
+    "mongoose": "^6.7.2",
+    "sass": "^1.56.1"
+  }
+}
