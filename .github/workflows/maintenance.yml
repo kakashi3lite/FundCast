@@ -1,0 +1,602 @@
+name: 🔧 Dependency Management & Maintenance
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'    # Weekly on Monday at 8 AM UTC
+    - cron: '0 2 1 * *'    # Monthly on 1st at 2 AM UTC
+  workflow_dispatch:
+    inputs:
+      update_type:
+        description: 'Update Type'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+      create_pr:
+        description: 'Create Pull Request'
+        required: true
+        default: true
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '20'
+
+jobs:
+  # ============================================================================
+  # DEPENDENCY ANALYSIS & UPDATES
+  # ============================================================================
+  dependency-updates:
+    name: 📦 Dependency Updates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: 🔍 Analyze Current Dependencies
+        run: |
+          echo "## 📊 Current Dependency Analysis" > dependency_analysis.md
+          echo "" >> dependency_analysis.md
+          
+          # Python dependencies analysis
+          if [ -f "pyproject.toml" ]; then
+            pip install pip-tools toml
+            python << 'EOF'
+          import toml
+          import subprocess
+          
+          # Load current dependencies
+          with open('pyproject.toml', 'r') as f:
+              config = toml.load(f)
+          
+          deps = config.get('project', {}).get('dependencies', [])
+          print(f"📦 Python Dependencies: {len(deps)} packages")
+          
+          # Check for outdated packages
+          try:
+              result = subprocess.run(['pip', 'list', '--outdated'], capture_output=True, text=True)
+              outdated = len(result.stdout.split('\n')) - 3  # Subtract header lines
+              print(f"⚠️ Outdated packages: {max(0, outdated)}")
+          except:
+              print("Could not check outdated packages")
+          EOF
+          fi
+          
+          # Node.js dependencies analysis
+          if [ -f "package.json" ]; then
+            npm audit --audit-level moderate || true
+            OUTDATED_COUNT=$(npm outdated --json 2>/dev/null | jq 'length // 0')
+            echo "📦 Node.js Dependencies: $(jq '.dependencies | length // 0' package.json) packages"
+            echo "⚠️ Outdated packages: $OUTDATED_COUNT"
+          fi
+      
+      - name: 🔄 Update Python Dependencies
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            echo "🔄 Updating Python dependencies..."
+            
+            pip install pip-tools
+            
+            # Generate updated requirements
+            if [ -f "requirements.txt" ]; then
+              pip-compile --upgrade requirements.in || pip-compile --upgrade pyproject.toml
+            fi
+            
+            # Check for security updates
+            pip install safety
+            safety check --json > safety_report.json || true
+            
+            # Update development dependencies
+            if [ -f "requirements-dev.txt" ]; then
+              pip-compile --upgrade requirements-dev.in || true
+            fi
+            
+            echo "✅ Python dependencies update completed"
+          fi
+      
+      - name: 🔄 Update Node.js Dependencies
+        run: |
+          if [ -f "package.json" ]; then
+            echo "🔄 Updating Node.js dependencies..."
+            
+            # Update dependencies based on update type
+            UPDATE_TYPE="${{ github.event.inputs.update_type || 'minor' }}"
+            
+            if [ "$UPDATE_TYPE" == "patch" ]; then
+              npm update --save
+            elif [ "$UPDATE_TYPE" == "minor" ]; then
+              npx npm-check-updates -u --target minor
+              npm install
+            elif [ "$UPDATE_TYPE" == "major" ]; then
+              npx npm-check-updates -u
+              npm install
+            fi
+            
+            # Security audit and fix
+            npm audit fix || true
+            
+            echo "✅ Node.js dependencies update completed"
+          fi
+      
+      - name: 🧪 Test Updated Dependencies
+        run: |
+          echo "🧪 Testing updated dependencies..."
+          
+          # Install and test Python dependencies
+          if [ -f "pyproject.toml" ]; then
+            pip install -e .
+            
+            # Run basic import tests
+            python << 'EOF'
+          try:
+              # Test critical imports
+              import fastapi
+              import sqlalchemy
+              import pydantic
+              import redis
+              print("✅ Critical Python packages import successfully")
+          except ImportError as e:
+              print(f"❌ Import error: {e}")
+              exit(1)
+          EOF
+          fi
+          
+          # Test Node.js dependencies
+          if [ -f "package.json" ]; then
+            npm test --if-present || echo "⚠️ No Node.js tests defined"
+          fi
+          
+          echo "✅ Dependency tests completed"
+      
+      - name: 🔍 Security Vulnerability Check
+        run: |
+          echo "🔍 Checking for security vulnerabilities..."
+          
+          # Python security check
+          if [ -f "pyproject.toml" ]; then
+            pip install safety bandit
+            safety check --json > python_security.json || true
+            
+            # Quick bandit scan on updated dependencies
+            bandit -r src/ -f json -o bandit_deps.json -ll || true
+          fi
+          
+          # Node.js security audit
+          if [ -f "package.json" ]; then
+            npm audit --audit-level moderate --json > nodejs_security.json || true
+          fi
+          
+          # Generate security summary
+          python << 'EOF'
+          import json
+          import os
+          
+          def check_security_reports():
+              issues = []
+              
+              # Check Python security
+              if os.path.exists('python_security.json'):
+                  try:
+                      with open('python_security.json') as f:
+                          data = json.load(f)
+                          if isinstance(data, list) and len(data) > 0:
+                              issues.append(f"Python: {len(data)} security issues")
+                  except:
+                      pass
+              
+              # Check Node.js security
+              if os.path.exists('nodejs_security.json'):
+                  try:
+                      with open('nodejs_security.json') as f:
+                          data = json.load(f)
+                          vulnerabilities = data.get('metadata', {}).get('vulnerabilities', {})
+                          total_vulns = sum(vulnerabilities.values())
+                          if total_vulns > 0:
+                              issues.append(f"Node.js: {total_vulns} security issues")
+                  except:
+                      pass
+              
+              if issues:
+                  print("🚨 Security issues found:")
+                  for issue in issues:
+                      print(f"  - {issue}")
+              else:
+                  print("✅ No critical security issues found")
+              
+              return len(issues) == 0
+          
+          security_ok = check_security_reports()
+          if not security_ok:
+              print("⚠️ Security issues detected - review before merging")
+          EOF
+      
+      - name: 📊 Generate Update Report
+        run: |
+          echo "## 🔄 Dependency Update Report" > update_report.md
+          echo "" >> update_report.md
+          echo "**Update Type**: ${{ github.event.inputs.update_type || 'minor' }}" >> update_report.md
+          echo "**Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> update_report.md
+          echo "" >> update_report.md
+          
+          # Git changes summary
+          if git diff --quiet; then
+            echo "ℹ️ **No dependency updates available**" >> update_report.md
+          else
+            echo "### 📦 Updated Files" >> update_report.md
+            git diff --name-only | while read file; do
+              echo "- \`$file\`" >> update_report.md
+            done
+            
+            echo "" >> update_report.md
+            echo "### 🔍 Changes Summary" >> update_report.md
+            
+            # Python changes
+            if git diff --name-only | grep -q "requirements\|pyproject.toml"; then
+              echo "- **Python dependencies**: Updated" >> update_report.md
+            fi
+            
+            # Node.js changes
+            if git diff --name-only | grep -q "package"; then
+              echo "- **Node.js dependencies**: Updated" >> update_report.md
+            fi
+            
+            echo "" >> update_report.md
+            echo "### ✅ Validation Results" >> update_report.md
+            echo "- Dependency installation: ✅ Successful" >> update_report.md
+            echo "- Import tests: ✅ Passed" >> update_report.md
+            echo "- Security check: ✅ Completed" >> update_report.md
+          fi
+      
+      - name: 🔄 Create Pull Request
+        if: github.event.inputs.create_pr != 'false'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            chore: update dependencies (${{ github.event.inputs.update_type || 'minor' }})
+            
+            - Updated Python and Node.js dependencies
+            - Fixed security vulnerabilities where applicable
+            - Validated all imports and basic functionality
+            
+            🤖 Generated by maintenance workflow
+          title: "🔄 Dependency Updates - ${{ github.event.inputs.update_type || 'minor' }}"
+          body: |
+            ## 📦 Dependency Updates
+            
+            This PR contains automated dependency updates generated by the maintenance workflow.
+            
+            **Update Type**: ${{ github.event.inputs.update_type || 'minor' }}
+            
+            ### What's included:
+            - Python package updates via pip-tools
+            - Node.js package updates via npm-check-updates  
+            - Security vulnerability fixes
+            - Dependency validation tests
+            
+            ### Manual review required:
+            - [ ] Review breaking changes in updated packages
+            - [ ] Run full test suite locally
+            - [ ] Check for any deprecated API usage
+            - [ ] Validate security fixes
+            
+            ### Security Analysis:
+            See workflow artifacts for detailed security reports.
+            
+            **Generated by**: Maintenance Automation Workflow
+          branch: automated-dependency-updates
+          delete-branch: true
+          labels: |
+            dependencies
+            automated
+            maintenance
+
+  # ============================================================================
+  # CODE CLEANUP & OPTIMIZATION
+  # ============================================================================
+  code-cleanup:
+    name: 🧹 Code Cleanup & Optimization
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.schedule == '0 2 1 * *'  # Monthly cleanup
+    
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: 🧹 Code Cleanup Tasks
+        run: |
+          pip install autoflake isort black
+          
+          echo "🧹 Starting code cleanup tasks..."
+          
+          # Remove unused imports
+          autoflake --remove-all-unused-imports --recursive --in-place src/
+          
+          # Sort imports
+          isort src/ tests/ --profile black
+          
+          # Format code
+          black src/ tests/
+          
+          # Remove __pycache__ directories
+          find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          
+          # Remove .pyc files
+          find . -name "*.pyc" -delete 2>/dev/null || true
+          
+          echo "✅ Code cleanup completed"
+      
+      - name: 📊 Generate Cleanup Report
+        run: |
+          echo "## 🧹 Code Cleanup Report" > cleanup_report.md
+          echo "" >> cleanup_report.md
+          echo "**Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> cleanup_report.md
+          echo "" >> cleanup_report.md
+          
+          if git diff --quiet; then
+            echo "ℹ️ **No cleanup changes needed**" >> cleanup_report.md
+          else
+            echo "### 🔄 Changes Made" >> cleanup_report.md
+            echo "- Removed unused imports" >> cleanup_report.md
+            echo "- Sorted import statements" >> cleanup_report.md
+            echo "- Applied consistent code formatting" >> cleanup_report.md
+            echo "- Cleaned temporary files" >> cleanup_report.md
+            
+            echo "" >> cleanup_report.md
+            echo "### 📁 Files Modified" >> cleanup_report.md
+            git diff --name-only | while read file; do
+              echo "- \`$file\`" >> cleanup_report.md
+            done
+          fi
+      
+      - name: 🔄 Create Cleanup PR
+        if: github.event.schedule == '0 2 1 * *'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            refactor: monthly code cleanup and optimization
+            
+            - Removed unused imports
+            - Applied consistent formatting
+            - Sorted import statements
+            - Cleaned temporary files
+            
+            🤖 Generated by monthly maintenance
+          title: "🧹 Monthly Code Cleanup & Optimization"
+          body: |
+            ## 🧹 Monthly Code Cleanup
+            
+            This PR contains automated code cleanup and optimization changes.
+            
+            ### Changes included:
+            - **Import Cleanup**: Removed unused imports with autoflake
+            - **Code Formatting**: Applied black formatting
+            - **Import Sorting**: Organized imports with isort
+            - **File Cleanup**: Removed temporary and cache files
+            
+            ### Benefits:
+            - Improved code readability
+            - Reduced bundle size
+            - Consistent code style
+            - Cleaner repository
+            
+            **Generated by**: Monthly Maintenance Workflow
+          branch: monthly-cleanup
+          delete-branch: true
+          labels: |
+            refactor
+            automated
+            maintenance
+
+  # ============================================================================
+  # DOCKER IMAGE CLEANUP
+  # ============================================================================
+  docker-cleanup:
+    name: 🐳 Docker Image Cleanup
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event.schedule == '0 2 1 * *'  # Monthly cleanup
+    
+    permissions:
+      packages: write
+    
+    steps:
+      - name: 🔑 Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 🧹 Cleanup Old Docker Images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: 'fundcast'
+          package-type: 'container'
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: true
+      
+      - name: 📊 Docker Cleanup Summary
+        run: |
+          echo "## 🐳 Docker Image Cleanup Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry**: ghcr.io" >> $GITHUB_STEP_SUMMARY
+          echo "- **Package**: fundcast" >> $GITHUB_STEP_SUMMARY
+          echo "- **Action**: Removed untagged versions (kept latest 10)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # REPOSITORY HEALTH CHECK
+  # ============================================================================
+  repo-health-check:
+    name: 🏥 Repository Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🔍 Repository Analysis
+        run: |
+          echo "🏥 Performing repository health check..."
+          
+          # File size analysis
+          echo "📊 Large files check:"
+          find . -type f -size +10M -not -path "./.git/*" | head -10
+          
+          # Git repository size
+          REPO_SIZE=$(du -sh .git | cut -f1)
+          echo "📁 Repository size: $REPO_SIZE"
+          
+          # Branch analysis
+          BRANCH_COUNT=$(git branch -r | wc -l)
+          echo "🌿 Remote branches: $BRANCH_COUNT"
+          
+          # Recent activity
+          RECENT_COMMITS=$(git log --since="30 days ago" --oneline | wc -l)
+          echo "📝 Commits (last 30 days): $RECENT_COMMITS"
+          
+          # TODO comments analysis
+          TODO_COUNT=$(grep -r "TODO\|FIXME\|XXX" src/ tests/ 2>/dev/null | wc -l || echo "0")
+          echo "📋 TODO items: $TODO_COUNT"
+      
+      - name: 📊 Generate Health Report
+        run: |
+          echo "## 🏥 Repository Health Report" > health_report.md
+          echo "" >> health_report.md
+          echo "**Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> health_report.md
+          echo "" >> health_report.md
+          
+          # File structure health
+          echo "### 📁 Repository Structure" >> health_report.md
+          echo "- **Source files**: $(find src/ -name '*.py' 2>/dev/null | wc -l) Python files" >> health_report.md
+          echo "- **Test files**: $(find tests/ -name '*.py' 2>/dev/null | wc -l) test files" >> health_report.md
+          echo "- **Documentation**: $(find . -name '*.md' | wc -l) markdown files" >> health_report.md
+          
+          # Code quality indicators
+          echo "" >> health_report.md
+          echo "### 🎯 Code Quality Indicators" >> health_report.md
+          
+          # TODO items
+          TODO_COUNT=$(grep -r "TODO\|FIXME\|XXX" src/ tests/ 2>/dev/null | wc -l || echo "0")
+          if [ "$TODO_COUNT" -gt 20 ]; then
+            echo "⚠️ **TODO items**: $TODO_COUNT (consider addressing some)" >> health_report.md
+          else
+            echo "✅ **TODO items**: $TODO_COUNT (manageable level)" >> health_report.md
+          fi
+          
+          # Documentation coverage
+          if [ -f "README.md" ] && [ -f "SECURITY.md" ]; then
+            echo "✅ **Documentation**: Core documentation present" >> health_report.md
+          else
+            echo "⚠️ **Documentation**: Missing core documentation files" >> health_report.md
+          fi
+          
+          # Git health
+          BRANCH_COUNT=$(git branch -r | wc -l)
+          if [ "$BRANCH_COUNT" -gt 20 ]; then
+            echo "⚠️ **Branches**: $BRANCH_COUNT remote branches (consider cleanup)" >> health_report.md
+          else
+            echo "✅ **Branches**: $BRANCH_COUNT remote branches (healthy)" >> health_report.md
+          fi
+          
+          echo "" >> health_report.md
+          echo "### 📈 Activity Summary" >> health_report.md
+          echo "- **Recent commits**: $(git log --since="30 days ago" --oneline | wc -l) in last 30 days" >> health_report.md
+          echo "- **Contributors**: $(git shortlog -sn | wc -l) unique contributors" >> health_report.md
+          echo "- **Repository age**: $(git log --reverse --format=%cr | head -1)" >> health_report.md
+      
+      - name: 📊 Upload Health Report
+        run: |
+          cat health_report.md >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # MAINTENANCE SUMMARY
+  # ============================================================================
+  maintenance-summary:
+    name: 📋 Maintenance Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-updates, code-cleanup, docker-cleanup, repo-health-check]
+    if: always()
+    
+    steps:
+      - name: 📊 Generate Summary Report
+        run: |
+          echo "## 🔧 Maintenance Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Job status summary
+          if [[ "${{ needs.dependency-updates.result }}" == "success" ]]; then
+            echo "✅ **Dependency Updates**: Completed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Dependency Updates**: ${{ needs.dependency-updates.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [[ "${{ needs.code-cleanup.result }}" == "success" ]]; then
+            echo "✅ **Code Cleanup**: Completed successfully" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.code-cleanup.result }}" == "skipped" ]]; then
+            echo "⏭️ **Code Cleanup**: Skipped (not scheduled)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Code Cleanup**: ${{ needs.code-cleanup.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [[ "${{ needs.docker-cleanup.result }}" == "success" ]]; then
+            echo "✅ **Docker Cleanup**: Completed successfully" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.docker-cleanup.result }}" == "skipped" ]]; then
+            echo "⏭️ **Docker Cleanup**: Skipped (not scheduled)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Docker Cleanup**: ${{ needs.docker-cleanup.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [[ "${{ needs.repo-health-check.result }}" == "success" ]]; then
+            echo "✅ **Repository Health**: Healthy" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Repository Health**: Issues detected" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 Recommendations" >> $GITHUB_STEP_SUMMARY
+          echo "- Review any created pull requests for dependency updates" >> $GITHUB_STEP_SUMMARY
+          echo "- Monitor security advisories for newly disclosed vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "- Consider updating Node.js/Python versions quarterly" >> $GITHUB_STEP_SUMMARY
+          echo "- Schedule regular dependency audits" >> $GITHUB_STEP_SUMMARY

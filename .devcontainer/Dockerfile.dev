@@ -1,0 +1,276 @@
+# Development Dockerfile for FundCast
+FROM mcr.microsoft.com/vscode/devcontainers/python:3.12
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/workspace/src \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_VENV_IN_PROJECT=1 \
+    POETRY_CACHE_DIR=/tmp/poetry_cache
+
+# Install system dependencies
+RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
+    && apt-get -y install --no-install-recommends \
+        # Development tools
+        curl \
+        wget \
+        git \
+        vim \
+        nano \
+        htop \
+        tree \
+        jq \
+        # Build essentials
+        build-essential \
+        gcc \
+        g++ \
+        make \
+        # Database clients
+        postgresql-client \
+        redis-tools \
+        # Network tools
+        netcat \
+        telnet \
+        dnsutils \
+        # Python development
+        python3-dev \
+        python3-pip \
+        python3-setuptools \
+        python3-wheel \
+        # Security tools
+        gnupg2 \
+        # Documentation
+        pandoc \
+        # Performance monitoring
+        htop \
+        iotop \
+        # File operations
+        zip \
+        unzip \
+        rsync \
+    && apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js and npm
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - \
+    && apt-get install -y nodejs
+
+# Install Poetry
+RUN pip install poetry
+
+# Install additional Python tools
+RUN pip install --no-cache-dir \
+    # Development tools
+    ipython \
+    ipdb \
+    jupyter \
+    jupyterlab \
+    # Testing frameworks
+    pytest \
+    pytest-cov \
+    pytest-asyncio \
+    pytest-mock \
+    pytest-benchmark \
+    hypothesis \
+    # Code quality tools
+    black \
+    isort \
+    ruff \
+    mypy \
+    flake8 \
+    bandit \
+    # Pre-commit hooks
+    pre-commit \
+    # Documentation tools
+    sphinx \
+    sphinx-rtd-theme \
+    mkdocs \
+    mkdocs-material \
+    # API documentation
+    redoc-cli \
+    # Performance profiling
+    py-spy \
+    memory-profiler \
+    line-profiler \
+    # Database tools
+    alembic \
+    # Async tools
+    asyncio-mqtt \
+    # Monitoring and observability
+    opentelemetry-api \
+    opentelemetry-sdk \
+    # Development utilities
+    python-dotenv \
+    click \
+    rich \
+    typer
+
+# Install development CLI tools
+RUN npm install -g \
+    # Documentation
+    @apidevtools/swagger-cli \
+    # Linting and formatting
+    eslint \
+    prettier \
+    # Build tools
+    webpack-cli \
+    # Security
+    audit-ci \
+    # Performance
+    lighthouse \
+    # API testing
+    newman
+
+# Install GitHub CLI
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt update \
+    && apt install gh -y
+
+# Install Docker CLI
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
+    && apt-get update && apt-get install -y docker-ce-cli
+
+# Install kubectl
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+    && install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+# Install Terraform
+RUN wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | tee /usr/share/keyrings/hashicorp-archive-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list \
+    && apt update && apt install terraform
+
+# Install AWS CLI
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
+    && unzip awscliv2.zip \
+    && ./aws/install \
+    && rm -rf aws awscliv2.zip
+
+# Create workspace directory
+WORKDIR /workspace
+
+# Configure git
+RUN git config --global --add safe.directory /workspace
+
+# Set up shell customizations
+RUN echo 'alias ll="ls -la"' >> /home/vscode/.bashrc \
+    && echo 'alias la="ls -la"' >> /home/vscode/.bashrc \
+    && echo 'alias grep="grep --color=auto"' >> /home/vscode/.bashrc \
+    && echo 'alias fgrep="fgrep --color=auto"' >> /home/vscode/.bashrc \
+    && echo 'alias egrep="egrep --color=auto"' >> /home/vscode/.bashrc \
+    && echo 'export PS1="\[\033[01;32m\]\u@fundcast-dev\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "' >> /home/vscode/.bashrc \
+    && echo 'export PYTHONPATH="/workspace/src:$PYTHONPATH"' >> /home/vscode/.bashrc \
+    && echo 'cd /workspace' >> /home/vscode/.bashrc
+
+# Create helpful development scripts
+RUN mkdir -p /usr/local/bin && cat > /usr/local/bin/dev-setup << 'EOF' && chmod +x /usr/local/bin/dev-setup
+#!/bin/bash
+echo "🚀 Setting up FundCast development environment..."
+
+# Install Python dependencies
+if [ -f "/workspace/pyproject.toml" ]; then
+    echo "📦 Installing Python dependencies..."
+    cd /workspace && poetry install --with dev
+fi
+
+# Install Node.js dependencies
+if [ -f "/workspace/package.json" ]; then
+    echo "📦 Installing Node.js dependencies..."
+    cd /workspace && npm install
+fi
+
+# Set up pre-commit hooks
+if [ -f "/workspace/.pre-commit-config.yaml" ]; then
+    echo "🪝 Setting up pre-commit hooks..."
+    cd /workspace && pre-commit install
+fi
+
+# Initialize database
+if [ ! -z "$DATABASE_URL" ]; then
+    echo "🗄️ Initializing database..."
+    cd /workspace && python -m alembic upgrade head 2>/dev/null || echo "No migrations found"
+fi
+
+echo "✅ Development environment setup complete!"
+echo "📚 Available commands:"
+echo "  - dev-test: Run test suite"
+echo "  - dev-lint: Run code quality checks"
+echo "  - dev-serve: Start development server"
+echo "  - dev-db: Database management"
+EOF
+
+RUN cat > /usr/local/bin/dev-test << 'EOF' && chmod +x /usr/local/bin/dev-test
+#!/bin/bash
+cd /workspace
+echo "🧪 Running FundCast test suite..."
+pytest tests/ -v --cov=src --cov-report=html --cov-report=term-missing
+EOF
+
+RUN cat > /usr/local/bin/dev-lint << 'EOF' && chmod +x /usr/local/bin/dev-lint
+#!/bin/bash
+cd /workspace
+echo "🔍 Running code quality checks..."
+echo "→ Black formatting..."
+black --check src/ tests/
+echo "→ Import sorting..."
+isort --check-only src/ tests/
+echo "→ Linting..."
+ruff src/ tests/
+echo "→ Type checking..."
+mypy src/ --ignore-missing-imports
+echo "→ Security check..."
+bandit -r src/ -ll
+echo "✅ All checks complete!"
+EOF
+
+RUN cat > /usr/local/bin/dev-serve << 'EOF' && chmod +x /usr/local/bin/dev-serve
+#!/bin/bash
+cd /workspace/src
+echo "🚀 Starting FundCast development server..."
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload --log-level debug
+EOF
+
+RUN cat > /usr/local/bin/dev-db << 'EOF' && chmod +x /usr/local/bin/dev-db
+#!/bin/bash
+cd /workspace
+
+case "$1" in
+    "reset")
+        echo "🔄 Resetting database..."
+        python -c "
+from src.api.database import engine, Base
+Base.metadata.drop_all(engine)
+Base.metadata.create_all(engine)
+print('✅ Database reset complete!')
+"
+        ;;
+    "migrate")
+        echo "🔄 Running migrations..."
+        alembic upgrade head
+        ;;
+    "shell")
+        echo "🐚 Opening database shell..."
+        psql "$DATABASE_URL"
+        ;;
+    *)
+        echo "Usage: dev-db {reset|migrate|shell}"
+        ;;
+esac
+EOF
+
+# Switch to vscode user
+USER vscode
+
+# Set up user environment
+RUN echo 'export PATH="/home/vscode/.local/bin:$PATH"' >> /home/vscode/.bashrc \
+    && echo 'source /home/vscode/.bashrc' >> /home/vscode/.bash_profile
+
+# Welcome message
+RUN echo 'echo "🎉 Welcome to FundCast Development Environment!"' >> /home/vscode/.bashrc \
+    && echo 'echo "📁 Workspace: /workspace"' >> /home/vscode/.bashrc \
+    && echo 'echo "🔧 Development tools ready!"' >> /home/vscode/.bashrc
+
+# Set the default command
+CMD ["sleep", "infinity"]

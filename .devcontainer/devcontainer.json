@@ -1,0 +1,241 @@
+{
+  "name": "FundCast Development Environment",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  
+  // Features to add to the dev container
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.12",
+      "installTools": true,
+      "installJupyterlab": true
+    }
+  },
+
+  // Configure tool-specific properties
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // Python Development
+        "ms-python.python",
+        "ms-python.pylint",
+        "ms-python.black-formatter",
+        "ms-python.isort",
+        "ms-python.mypy-type-checker",
+        "ms-toolsai.jupyter",
+        
+        // Code Quality & Security
+        "ms-python.flake8",
+        "ms-vsliveshare.vsliveshare",
+        "streetsidesoftware.code-spell-checker",
+        "github.vscode-pull-request-github",
+        
+        // Docker & DevOps
+        "ms-azuretools.vscode-docker",
+        "ms-vscode-remote.remote-containers",
+        "redhat.vscode-yaml",
+        
+        // Database
+        "ms-mssql.mssql",
+        "cweijan.vscode-postgresql-client2",
+        "mtxr.sqltools",
+        "mtxr.sqltools-driver-pg",
+        
+        // API Development
+        "42Crunch.vscode-openapi",
+        "humao.rest-client",
+        "rangav.vscode-thunder-client",
+        
+        // Git & GitHub
+        "github.vscode-github-actions",
+        "github.copilot",
+        "github.copilot-chat",
+        "eamodio.gitlens",
+        
+        // Productivity
+        "aaron-bond.better-comments",
+        "alefragnani.bookmarks",
+        "gruntfuggly.todo-tree",
+        "oderwat.indent-rainbow",
+        "pkief.material-icon-theme",
+        "zhuangtongfa.material-theme",
+        
+        // Testing
+        "littlefoxteam.vscode-python-test-adapter",
+        "ms-playwright.playwright",
+        
+        // Documentation
+        "yzhang.markdown-all-in-one",
+        "davidanson.vscode-markdownlint",
+        "bierner.markdown-mermaid",
+        
+        // AI & ML
+        "ms-toolsai.vscode-ai",
+        "continue.continue"
+      ],
+      
+      "settings": {
+        // Python Configuration
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.formatting.provider": "black",
+        "python.formatting.blackArgs": ["--line-length=88"],
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.linting.flake8Enabled": true,
+        "python.linting.mypyEnabled": true,
+        "python.linting.banditEnabled": true,
+        "python.linting.lintOnSave": true,
+        "python.sortImports.args": ["--profile", "black"],
+        
+        // Editor Configuration
+        "editor.formatOnSave": true,
+        "editor.formatOnPaste": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": true,
+          "source.fixAll": true
+        },
+        "editor.rulers": [88],
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "editor.trimAutoWhitespace": true,
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+        
+        // Testing Configuration
+        "python.testing.pytestEnabled": true,
+        "python.testing.unittestEnabled": false,
+        "python.testing.pytestArgs": ["tests/"],
+        "python.testing.autoTestDiscoverOnSaveEnabled": true,
+        
+        // Git Configuration
+        "git.autofetch": true,
+        "git.enableSmartCommit": true,
+        "git.confirmSync": false,
+        
+        // Security
+        "security.workspace.trust.enabled": false,
+        
+        // Performance
+        "python.analysis.autoImportCompletions": true,
+        "python.analysis.typeCheckingMode": "strict",
+        
+        // Docker
+        "docker.showStartPage": false,
+        
+        // Terminal
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.scrollback": 10000,
+        
+        // File Associations
+        "files.associations": {
+          "*.yml": "yaml",
+          "*.yaml": "yaml",
+          ".env*": "properties",
+          "Dockerfile*": "dockerfile",
+          "*.md": "markdown"
+        },
+        
+        // Theme
+        "workbench.colorTheme": "Material Theme Darker High Contrast",
+        "workbench.iconTheme": "material-icon-theme",
+        
+        // TODO Tree Configuration
+        "todo-tree.highlights.enabled": true,
+        "todo-tree.highlights.defaultHighlight": {
+          "icon": "alert",
+          "type": "text"
+        },
+        "todo-tree.highlights.customHighlight": {
+          "TODO": {
+            "icon": "check",
+            "foreground": "#FFD700"
+          },
+          "FIXME": {
+            "icon": "alert",
+            "foreground": "#FF6B6B"
+          },
+          "NOTE": {
+            "icon": "note",
+            "foreground": "#54A0FF"
+          },
+          "SECURITY": {
+            "icon": "shield",
+            "foreground": "#FF4757"
+          }
+        }
+      }
+    }
+  },
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally
+  "forwardPorts": [
+    8000,  // FastAPI server
+    5432,  // PostgreSQL
+    6379,  // Redis
+    3000,  // Frontend dev server (if applicable)
+    8080,  // Alternative HTTP port
+    9000   // Debugging/profiling port
+  ],
+  
+  "portsAttributes": {
+    "8000": {
+      "label": "FastAPI Server",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL Database",
+      "onAutoForward": "silent"
+    },
+    "6379": {
+      "label": "Redis Cache",
+      "onAutoForward": "silent"
+    },
+    "3000": {
+      "label": "Frontend Server",
+      "onAutoForward": "notify"
+    }
+  },
+
+  // Environment variables
+  "containerEnv": {
+    "PYTHONPATH": "/workspace/src",
+    "ENVIRONMENT": "development",
+    "LOG_LEVEL": "DEBUG",
+    "DATABASE_URL": "postgresql://postgres:postgres@postgres:5432/fundcast_dev",
+    "REDIS_URL": "redis://redis:6379",
+    "SECRET_KEY": "dev-secret-key-change-in-production"
+  },
+
+  // Commands to run when the container starts
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  
+  // Commands to run when attaching to the container
+  "postAttachCommand": "echo '🚀 FundCast development environment ready!'",
+
+  // Set the default user for VS Code Server
+  "remoteUser": "vscode",
+  
+  // Mount the Docker socket for Docker-in-Docker support
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker-host.sock,type=bind"
+  ],
+
+  // Lifecycle scripts
+  "initializeCommand": "echo '🏗️ Initializing FundCast development environment...'",
+  "onCreateCommand": "echo '📦 Setting up development dependencies...'",
+  "updateContentCommand": "echo '🔄 Updating development environment...'",
+  "postStartCommand": "echo '✅ Development environment started successfully!'",
+
+  // Dev container metadata
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "4gb",
+    "storage": "20gb"
+  }
+}
