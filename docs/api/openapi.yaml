@@ -1,0 +1,1307 @@
+openapi: 3.0.3
+info:
+  title: FundCast API
+  description: |
+    ## AI-First Social Funding + Forecasting Platform for SaaS Founders
+    
+    FundCast is the premier platform connecting SaaS founders through prediction markets and social funding mechanisms. 
+    Our enterprise-grade API provides comprehensive access to:
+    
+    - **🔮 Prediction Markets**: Binary, categorical, and scalar markets with dual-engine trading
+    - **💰 Social Funding**: Reg CF and Rule 506(c) compliant investment workflows  
+    - **🤖 AI Intelligence**: Semantic search, market analytics, and founder matching
+    - **👥 Founder Network**: Elite community features with Purple Tier home screen featuring
+    - **🛡️ Enterprise Security**: OWASP ASVS Level 2+ compliance with Red Team AI defense
+    
+    ### Authentication
+    
+    All API endpoints require authentication via JWT tokens:
+    
+    ```bash
+    Authorization: Bearer <jwt_token>
+    ```
+    
+    ### Rate Limiting
+    
+    - **Free Tier**: 60 requests/minute
+    - **Oracle Tier**: 300 requests/minute  
+    - **Whale Tier**: 1000 requests/minute
+    - **Purple Tier**: 5000 requests/minute
+    - **Kingmaker Tier**: Unlimited
+    
+    ### API Versioning
+    
+    We use URL path versioning with semantic versioning principles:
+    - **Current**: `/api/v1/`
+    - **Beta**: `/api/v2-beta/` (Preview features)
+    
+    ### Error Handling
+    
+    All errors follow RFC 7807 Problem Details format:
+    
+    ```json
+    {
+      "type": "https://fundcast.ai/errors/validation-failed",
+      "title": "Request validation failed", 
+      "status": 422,
+      "detail": "The request contains invalid parameters",
+      "instance": "/api/v1/markets/create",
+      "errors": [...]
+    }
+    ```
+    
+    ### Security
+    
+    - All endpoints use HTTPS with TLS 1.3
+    - OWASP ASVS Level 2+ compliance
+    - Advanced AI threat detection and Red Team protection
+    - Comprehensive audit logging and monitoring
+    
+  version: 1.0.0
+  contact:
+    name: FundCast API Support
+    email: api-support@fundcast.ai
+    url: https://docs.fundcast.ai
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://fundcast.ai/terms
+
+servers:
+  - url: https://api.fundcast.ai/api/v1
+    description: Production server
+  - url: https://staging-api.fundcast.ai/api/v1  
+    description: Staging server
+  - url: http://localhost:8000/api/v1
+    description: Development server
+
+security:
+  - bearerAuth: []
+
+paths:
+  # =============================================================================
+  # Authentication Endpoints
+  # =============================================================================
+  
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register new user account
+      description: Create a new user account with email verification workflow
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+            example:
+              email: "founder@example.com"
+              password: "SecurePassword123!"
+              full_name: "Jane Founder"
+              company_name: "AwesomeSaaS Inc"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login
+      description: Authenticate user and return JWT tokens
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      description: Get new access token using refresh token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+              required: [refresh_token]
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # =============================================================================
+  # User Management
+  # =============================================================================
+  
+  /users/profile:
+    get:
+      tags: [Users]
+      summary: Get user profile
+      description: Retrieve current user's profile information
+      operationId: getUserProfile
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    
+    put:
+      tags: [Users]
+      summary: Update user profile
+      description: Update current user's profile information
+      operationId: updateUserProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdate'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  # =============================================================================
+  # Subscription Management
+  # =============================================================================
+  
+  /subscriptions/tiers:
+    get:
+      tags: [Subscriptions]
+      summary: Get subscription tiers
+      description: Retrieve all available subscription tiers with pricing and features
+      operationId: getSubscriptionTiers
+      responses:
+        '200':
+          description: Subscription tiers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubscriptionTier'
+
+  /subscriptions/checkout:
+    post:
+      tags: [Subscriptions]
+      summary: Create checkout session
+      description: Create a new subscription checkout session with LemonSqueezy
+      operationId: createCheckoutSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+      responses:
+        '200':
+          description: Checkout session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /subscriptions/my-subscription:
+    get:
+      tags: [Subscriptions]
+      summary: Get current subscription
+      description: Retrieve current user's subscription details and status
+      operationId: getCurrentSubscription
+      responses:
+        '200':
+          description: Subscription details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionDetails'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # =============================================================================
+  # Purple Tier Featuring
+  # =============================================================================
+  
+  /subscriptions/purple-featuring/current:
+    get:
+      tags: [Purple Tier]
+      summary: Get currently featured founders
+      description: Retrieve founders currently featured on home screen (public endpoint)
+      operationId: getCurrentFeaturedFounders
+      security: []  # Public endpoint
+      responses:
+        '200':
+          description: Featured founders retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeaturedFoundersResponse'
+
+  /subscriptions/purple-featuring/queue:
+    get:
+      tags: [Purple Tier]
+      summary: Get featuring queue
+      description: Get user's Purple tier featuring queue and schedule
+      operationId: getFeaturingQueue
+      responses:
+        '200':
+          description: Featuring queue retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeaturingQueueResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  # =============================================================================
+  # Markets
+  # =============================================================================
+  
+  /markets:
+    get:
+      tags: [Markets]
+      summary: List prediction markets
+      description: Retrieve list of prediction markets with filtering and pagination
+      operationId: listMarkets
+      parameters:
+        - name: category
+          in: query
+          description: Filter by market category
+          schema:
+            type: string
+            enum: [technology, business, funding, founders, general]
+        - name: status
+          in: query
+          description: Filter by market status
+          schema:
+            type: string
+            enum: [active, resolved, cancelled]
+        - name: limit
+          in: query
+          description: Number of markets to return (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of markets to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Markets retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketsListResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    
+    post:
+      tags: [Markets]
+      summary: Create prediction market
+      description: Create a new prediction market (Whale tier and above)
+      operationId: createMarket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarketCreateRequest'
+      responses:
+        '201':
+          description: Market created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Market'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /markets/{market_id}:
+    get:
+      tags: [Markets]
+      summary: Get market details
+      description: Retrieve detailed information about a specific market
+      operationId: getMarketDetails
+      parameters:
+        - name: market_id
+          in: path
+          required: true
+          description: Market UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Market details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketDetails'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # =============================================================================
+  # Compliance
+  # =============================================================================
+  
+  /compliance/kyc/start:
+    post:
+      tags: [Compliance]
+      summary: Start KYC verification
+      description: Initiate Know Your Customer verification process
+      operationId: startKycVerification
+      responses:
+        '200':
+          description: KYC verification started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KycStartResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /compliance/accreditation/verify:
+    post:
+      tags: [Compliance]
+      summary: Verify accredited investor status
+      description: Start accredited investor verification for Rule 506(c) compliance
+      operationId: verifyAccreditedStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccreditationRequest'
+      responses:
+        '200':
+          description: Accreditation verification started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccreditationResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  # =============================================================================
+  # System Health & Monitoring
+  # =============================================================================
+  
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      description: Check API health status
+      operationId: healthCheck
+      security: []  # Public endpoint
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /auth/login endpoint
+
+  schemas:
+    # =============================================================================
+    # Authentication Schemas
+    # =============================================================================
+    
+    UserRegistration:
+      type: object
+      required: [email, password, full_name]
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+        password:
+          type: string
+          minLength: 8
+          pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]'
+          description: Strong password with mixed case, numbers, and symbols
+        full_name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          description: User's full name
+        company_name:
+          type: string
+          maxLength: 200
+          description: Company or organization name
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          pattern: '^[a-zA-Z0-9_-]+$'
+          description: Unique username (optional)
+
+    UserLogin:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        remember_me:
+          type: boolean
+          default: false
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT access token
+        refresh_token:
+          type: string
+          description: JWT refresh token
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Token expiration time in seconds
+        user:
+          $ref: '#/components/schemas/UserResponse'
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        username:
+          type: string
+        is_active:
+          type: boolean
+        email_verified:
+          type: boolean
+        subscription_tier:
+          type: string
+          enum: [founder, oracle, whale, purple, kingmaker]
+        created_at:
+          type: string
+          format: date-time
+
+    # =============================================================================
+    # User Profile Schemas
+    # =============================================================================
+    
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        username:
+          type: string
+        bio:
+          type: string
+          maxLength: 1000
+        profile_image_url:
+          type: string
+          format: uri
+        company:
+          $ref: '#/components/schemas/CompanyInfo'
+        subscription:
+          $ref: '#/components/schemas/SubscriptionInfo'
+        compliance:
+          $ref: '#/components/schemas/ComplianceStatus'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        full_name:
+          type: string
+          maxLength: 100
+        bio:
+          type: string
+          maxLength: 1000
+        profile_image_url:
+          type: string
+          format: uri
+        company_name:
+          type: string
+          maxLength: 200
+
+    # =============================================================================
+    # Subscription Schemas
+    # =============================================================================
+    
+    SubscriptionTier:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          enum: [Founder, Oracle, Whale, Purple, Kingmaker]
+        slug:
+          type: string
+          enum: [founder, oracle, whale, purple, kingmaker]
+        description:
+          type: string
+        monthly_price_cents:
+          type: integer
+          description: Price in cents for monthly billing
+        annual_price_cents:
+          type: integer
+          description: Price in cents for annual billing (usually discounted)
+        features:
+          type: array
+          items:
+            type: string
+          description: List of feature slugs included in this tier
+        is_popular:
+          type: boolean
+          description: Whether this tier should be highlighted as popular
+        is_recommended:
+          type: boolean
+          description: Whether this tier should be highlighted as recommended
+        max_markets:
+          type: integer
+          description: Maximum number of markets user can participate in
+        rate_limit:
+          type: integer
+          description: API rate limit per minute
+
+    CheckoutRequest:
+      type: object
+      required: [tier_slug, billing_cycle]
+      properties:
+        tier_slug:
+          type: string
+          enum: [oracle, whale, purple, kingmaker]
+        billing_cycle:
+          type: string
+          enum: [monthly, annual]
+          default: monthly
+        trial_days:
+          type: integer
+          minimum: 0
+          maximum: 30
+          default: 0
+        referral_code:
+          type: string
+          description: Optional referral code for discounts
+
+    CheckoutResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        checkout_url:
+          type: string
+          format: uri
+          description: LemonSqueezy checkout URL
+        tier_info:
+          $ref: '#/components/schemas/SubscriptionTier'
+        billing_cycle:
+          type: string
+          enum: [monthly, annual]
+        trial_days:
+          type: integer
+        expires_at:
+          type: string
+          format: date-time
+          description: When the checkout session expires
+
+    SubscriptionDetails:
+      type: object
+      properties:
+        subscription:
+          $ref: '#/components/schemas/SubscriptionInfo'
+        is_subscribed:
+          type: boolean
+        can_upgrade:
+          type: boolean
+        can_cancel:
+          type: boolean
+        next_billing_date:
+          type: string
+          format: date-time
+        usage_stats:
+          type: object
+          properties:
+            api_calls_this_month:
+              type: integer
+            markets_participated:
+              type: integer
+            featuring_impressions:
+              type: integer
+
+    SubscriptionInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tier:
+          $ref: '#/components/schemas/SubscriptionTier'
+        status:
+          type: string
+          enum: [active, canceled, past_due, paused, trialing]
+        billing_cycle:
+          type: string
+          enum: [monthly, annual]
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    # =============================================================================
+    # Purple Tier Featuring Schemas
+    # =============================================================================
+    
+    FeaturedFoundersResponse:
+      type: object
+      properties:
+        hero_founder:
+          $ref: '#/components/schemas/FeaturedFounder'
+        featured_grid:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeaturedFounder'
+          maxItems: 6
+        success_stories:
+          type: array
+          items:
+            $ref: '#/components/schemas/SuccessStory'
+          maxItems: 3
+
+    FeaturedFounder:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        username:
+          type: string
+        profile_image_url:
+          type: string
+          format: uri
+        custom_bio:
+          type: string
+          description: Purple tier custom bio for featuring
+        achievement_highlight:
+          type: string
+          description: Key achievement to highlight
+        cta_text:
+          type: string
+          description: Custom call-to-action text
+        company_name:
+          type: string
+        company_logo_url:
+          type: string
+          format: uri
+        market_performance:
+          type: object
+          properties:
+            accuracy_rate:
+              type: number
+              format: float
+            total_predictions:
+              type: integer
+        featuring_stats:
+          type: object
+          properties:
+            impressions:
+              type: integer
+            clicks:
+              type: integer
+            connections_generated:
+              type: integer
+
+    FeaturingQueueResponse:
+      type: object
+      properties:
+        current_featuring:
+          $ref: '#/components/schemas/FeaturingSchedule'
+        upcoming_slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeaturingSchedule'
+        queue_position:
+          type: integer
+          description: Position in the featuring queue
+        estimated_next_featuring:
+          type: string
+          format: date-time
+
+    FeaturingSchedule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        featuring_type:
+          type: string
+          enum: [hero, grid, story]
+        scheduled_start:
+          type: string
+          format: date-time
+        scheduled_end:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [scheduled, active, completed, cancelled]
+        custom_content:
+          type: object
+          properties:
+            custom_bio:
+              type: string
+            achievement_highlight:
+              type: string
+            cta_text:
+              type: string
+
+    # =============================================================================
+    # Market Schemas
+    # =============================================================================
+    
+    MarketsListResponse:
+      type: object
+      properties:
+        markets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Market'
+        total:
+          type: integer
+          description: Total number of markets matching filters
+        limit:
+          type: integer
+        offset:
+          type: integer
+        has_next:
+          type: boolean
+
+    Market:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          enum: [technology, business, funding, founders, general]
+        market_type:
+          type: string
+          enum: [binary, categorical, scalar]
+        status:
+          type: string
+          enum: [active, paused, resolved, cancelled]
+        created_by:
+          type: string
+          format: uuid
+        resolution_date:
+          type: string
+          format: date-time
+        current_probability:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        total_volume:
+          type: integer
+          description: Total trading volume in cents
+        participant_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    MarketDetails:
+      allOf:
+        - $ref: '#/components/schemas/Market'
+        - type: object
+          properties:
+            positions:
+              type: array
+              items:
+                $ref: '#/components/schemas/MarketPosition'
+            price_history:
+              type: array
+              items:
+                $ref: '#/components/schemas/PricePoint'
+            recent_trades:
+              type: array
+              items:
+                $ref: '#/components/schemas/Trade'
+
+    MarketCreateRequest:
+      type: object
+      required: [title, description, category, market_type, resolution_date]
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        category:
+          type: string
+          enum: [technology, business, funding, founders, general]
+        market_type:
+          type: string
+          enum: [binary, categorical, scalar]
+        resolution_date:
+          type: string
+          format: date-time
+        resolution_source:
+          type: string
+          maxLength: 500
+        initial_probability:
+          type: number
+          format: float
+          minimum: 0.01
+          maximum: 0.99
+          default: 0.5
+
+    MarketPosition:
+      type: object
+      properties:
+        outcome:
+          type: string
+        shares:
+          type: number
+          format: float
+        avg_price:
+          type: number
+          format: float
+        current_value:
+          type: integer
+        unrealized_pnl:
+          type: integer
+
+    # =============================================================================
+    # Compliance Schemas
+    # =============================================================================
+    
+    ComplianceStatus:
+      type: object
+      properties:
+        kyc_status:
+          type: string
+          enum: [pending, verified, rejected, expired]
+        kyc_verified_at:
+          type: string
+          format: date-time
+        accredited_status:
+          type: string
+          enum: [unknown, verified, rejected, expired]
+        accredited_verified_at:
+          type: string
+          format: date-time
+        accredited_expires_at:
+          type: string
+          format: date-time
+
+    KycStartResponse:
+      type: object
+      properties:
+        verification_url:
+          type: string
+          format: uri
+          description: URL to complete KYC verification
+        reference_id:
+          type: string
+          description: Reference ID for tracking
+        expires_at:
+          type: string
+          format: date-time
+
+    AccreditationRequest:
+      type: object
+      required: [verification_method]
+      properties:
+        verification_method:
+          type: string
+          enum: [income, net_worth, professional]
+          description: Method of accreditation verification
+        documentation:
+          type: array
+          items:
+            type: object
+            properties:
+              document_type:
+                type: string
+                enum: [tax_return, bank_statement, investment_account, professional_certification]
+              file_url:
+                type: string
+                format: uri
+
+    AccreditationResponse:
+      type: object
+      properties:
+        verification_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, reviewing, approved, rejected]
+        estimated_completion:
+          type: string
+          format: date-time
+        next_steps:
+          type: array
+          items:
+            type: string
+
+    # =============================================================================
+    # System Schemas
+    # =============================================================================
+    
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy, degraded]
+        version:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        environment:
+          type: string
+        services:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [healthy, unhealthy]
+            redis:
+              type: string
+              enum: [healthy, unhealthy]
+            ai_models:
+              type: string
+              enum: [healthy, unhealthy]
+        uptime:
+          type: number
+          description: Uptime in seconds
+
+    # =============================================================================
+    # Common Schemas
+    # =============================================================================
+    
+    CompanyInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        website:
+          type: string
+          format: uri
+        industry:
+          type: string
+        stage:
+          type: string
+          enum: [idea, mvp, early_stage, growth, scale]
+        employee_count:
+          type: integer
+
+    SuccessStory:
+      type: object
+      properties:
+        founder_name:
+          type: string
+        company_name:
+          type: string
+        achievement:
+          type: string
+        metrics:
+          type: object
+          properties:
+            funding_raised:
+              type: string
+            growth_rate:
+              type: string
+            market_accuracy:
+              type: number
+              format: float
+
+    PricePoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        price:
+          type: number
+          format: float
+        volume:
+          type: integer
+
+    Trade:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        outcome:
+          type: string
+        shares:
+          type: number
+          format: float
+        price:
+          type: number
+          format: float
+        trader_id:
+          type: string
+          format: uuid
+
+    # =============================================================================
+    # Error Schemas
+    # =============================================================================
+    
+    Error:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+          description: URI identifying the problem type
+        title:
+          type: string
+          description: Short, human-readable summary of the problem
+        status:
+          type: integer
+          description: HTTP status code
+        detail:
+          type: string
+          description: Human-readable explanation of the problem
+        instance:
+          type: string
+          format: uri
+          description: URI reference identifying the specific occurrence
+
+    ValidationError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            errors:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+                  code:
+                    type: string
+
+  responses:
+    # =============================================================================
+    # Error Responses
+    # =============================================================================
+    
+    UnauthorizedError:
+      description: Authentication required or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: "https://fundcast.ai/errors/unauthorized"
+            title: "Unauthorized"
+            status: 401
+            detail: "Valid authentication credentials are required"
+            instance: "/api/v1/users/profile"
+
+    ForbiddenError:
+      description: Access denied - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: "https://fundcast.ai/errors/forbidden"
+            title: "Forbidden" 
+            status: 403
+            detail: "This feature requires Purple tier subscription or higher"
+            instance: "/api/v1/subscriptions/purple-featuring/queue"
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: "https://fundcast.ai/errors/not-found"
+            title: "Not Found"
+            status: 404
+            detail: "The requested resource could not be found"
+            instance: "/api/v1/markets/123e4567-e89b-12d3-a456-426614174000"
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+          example:
+            type: "https://fundcast.ai/errors/validation-failed"
+            title: "Validation Failed"
+            status: 422
+            detail: "The request contains invalid parameters"
+            instance: "/api/v1/auth/register"
+            errors:
+              - field: "password"
+                message: "Password must contain at least one uppercase letter"
+                code: "password_requirements"
+
+    ConflictError:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: "https://fundcast.ai/errors/conflict"
+            title: "Conflict"
+            status: 409
+            detail: "Email address is already registered"
+            instance: "/api/v1/auth/register"
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Users
+    description: User profile and account management
+  - name: Subscriptions
+    description: Subscription tier management and billing
+  - name: Purple Tier
+    description: Purple tier exclusive features and home screen featuring
+  - name: Markets
+    description: Prediction markets and trading
+  - name: Compliance
+    description: KYC, accreditation, and regulatory compliance
+  - name: System
+    description: System health and monitoring endpoints
+
+externalDocs:
+  description: FundCast API Documentation
+  url: https://docs.fundcast.ai

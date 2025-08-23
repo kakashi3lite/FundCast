@@ -29,7 +29,9 @@ from .auth.middleware import AuthMiddleware, RBACMiddleware, RateLimitMiddleware
 from .auth.router import auth_router
 from .compliance.router import compliance_router
 from .markets.router import markets_router
+from .subscriptions.router import router as subscriptions_router
 from .users.router import users_router
+from ..security.ai_defense_middleware import AIDefenseMiddleware
 from .config import settings
 from .database import Base, get_database
 from .exceptions import FundCastException
@@ -224,6 +226,7 @@ def create_app() -> FastAPI:
     )
     
     # Custom middleware (order matters for performance!)
+    app.add_middleware(AIDefenseMiddleware, enabled=getattr(settings, "AI_DEFENSE_ENABLED", True))  # AI threat detection first
     app.add_middleware(SREMiddleware)  # SRE monitoring first for comprehensive coverage
     app.add_middleware(CircuitBreakerMiddleware)  # Circuit breakers for resilience
     app.add_middleware(PerformanceMiddleware)  # Monitor performance
@@ -238,6 +241,7 @@ def create_app() -> FastAPI:
     app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
     app.include_router(compliance_router, prefix="/api/v1/compliance", tags=["compliance"])
     app.include_router(markets_router, prefix="/api/v1/markets", tags=["markets"])
+    app.include_router(subscriptions_router, prefix="/api/v1", tags=["subscriptions"])
     
     # Health check endpoint
     @app.get("/health", tags=["health"])

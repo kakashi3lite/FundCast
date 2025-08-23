@@ -356,6 +356,10 @@ async_session = async_sessionmaker(
 )
 
 
+# Import all models to ensure they're registered with SQLAlchemy
+from .subscriptions.models import *  # noqa: F401,F403
+
+
 async def get_database() -> AsyncGenerator[AsyncSession, None]:
     """Get database session."""
     async with async_session() as session:
@@ -366,3 +370,7 @@ async def get_database() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await session.close()
+
+
+# Alias for consistency with subscription router imports
+get_db = get_database

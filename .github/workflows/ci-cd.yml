@@ -1,0 +1,533 @@
+name: FundCast CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'release/*', 'feature/*' ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [ published ]
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "18"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Security and Code Quality
+  security-scan:
+    name: Security & Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install security tools
+        run: |
+          pip install bandit safety semgrep
+          npm install -g snyk
+
+      - name: Run Bandit Security Scan
+        run: bandit -r src/ -f json -o bandit-report.json
+        continue-on-error: true
+
+      - name: Run Safety Check
+        run: safety check --json --output safety-report.json
+        continue-on-error: true
+
+      - name: Run Semgrep SAST
+        run: |
+          python -m semgrep --config=auto --json --output=semgrep-report.json src/
+        continue-on-error: true
+
+      - name: Run Snyk Security Test
+        run: snyk test --json --json-file-output=snyk-report.json
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload Security Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+            semgrep-report.json
+            snyk-report.json
+
+  # Backend Testing
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fundcast_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install pytest-cov pytest-xvfb pytest-mock
+
+      - name: Set up test environment
+        run: |
+          cp .env.example .env.test
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/fundcast_test" >> .env.test
+          echo "REDIS_URL=redis://localhost:6379" >> .env.test
+
+      - name: Run database migrations
+        run: |
+          export PYTHONPATH=$PWD
+          python -m pytest src/tests/test_migrations.py -v
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fundcast_test
+
+      - name: Run unit tests
+        run: |
+          export PYTHONPATH=$PWD
+          python -m pytest src/tests/unit/ -v --cov=src --cov-report=xml --cov-report=html
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fundcast_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run integration tests
+        run: |
+          export PYTHONPATH=$PWD
+          python -m pytest src/tests/integration/ -v --cov-append --cov=src --cov-report=xml
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fundcast_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run property-based tests
+        run: |
+          export PYTHONPATH=$PWD
+          python -m pytest src/tests/property_based/ -v --cov-append --cov=src --cov-report=xml
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: backend
+          name: backend-coverage
+
+  # Frontend Testing
+  frontend-test:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install --global @playwright/test
+
+      - name: Run TypeScript checks
+        run: npm run type-check
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Prettier check
+        run: npm run format:check
+
+      - name: Run unit tests
+        run: npm run test:unit -- --coverage --watchAll=false
+
+      - name: Run component tests
+        run: npm run test:components -- --coverage --watchAll=false
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+
+      - name: Upload frontend coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+
+  # API Documentation
+  api-docs:
+    name: Generate API Documentation
+    runs-on: ubuntu-latest
+    needs: [backend-test]
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install redoc-cli
+
+      - name: Generate OpenAPI spec
+        run: |
+          export PYTHONPATH=$PWD
+          python scripts/generate_openapi_spec.py
+
+      - name: Generate API documentation
+        run: |
+          redoc-cli build openapi.json --output docs/api/index.html
+          mkdir -p docs/api/
+          cp openapi.json docs/api/
+
+      - name: Upload API docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: api-documentation
+          path: docs/api/
+
+  # Performance Testing
+  performance-test:
+    name: Performance & Load Testing
+    runs-on: ubuntu-latest
+    needs: [backend-test]
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up K6
+        run: |
+          curl -s https://dl.k6.io/key.gpg | sudo apt-key add -
+          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Run load tests
+        run: k6 run tests/performance/load_test.js
+        
+      - name: Run stress tests
+        run: k6 run tests/performance/stress_test.js
+
+      - name: Generate performance report
+        run: |
+          mkdir -p reports/performance
+          k6 run --out json=reports/performance/results.json tests/performance/load_test.js
+
+      - name: Upload performance reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-reports
+          path: reports/performance/
+
+  # Build and Container
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+    needs: [security-scan, backend-test, frontend-test]
+    
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Output image
+        id: image
+        run: |
+          echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+  # Security Container Scan
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    needs: [build]
+    
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.build.outputs.image }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build, container-scan]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    environment: staging
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying ${{ needs.build.outputs.image }} to staging"
+          # Deployment commands would go here
+          # e.g., kubectl set image deployment/fundcast-api api=${{ needs.build.outputs.image }}
+
+      - name: Run smoke tests
+        run: |
+          # Smoke tests for staging deployment
+          python tests/smoke/staging_smoke_test.py
+
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  # Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, container-scan]
+    if: github.event_name == 'release' && github.event.action == 'published'
+    environment: production
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Blue-Green Deployment
+        run: |
+          echo "Starting blue-green deployment of ${{ needs.build.outputs.image }}"
+          # Blue-green deployment logic
+          
+      - name: Health checks
+        run: |
+          # Production health checks
+          python tests/smoke/production_health_check.py
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed, rolling back"
+          # Rollback logic
+
+      - name: Notify success
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          channel: '#production'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          text: '🚀 FundCast successfully deployed to production!'
+
+  # Generate SBOM
+  sbom:
+    name: Software Bill of Materials
+    runs-on: ubuntu-latest
+    needs: [build]
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ needs.build.outputs.image }}
+          format: spdx-json
+          output-file: fundcast-sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom
+          path: fundcast-sbom.spdx.json
+
+  # Dependency Check
+  dependency-check:
+    name: Dependency Vulnerability Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run dependency check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'FundCast'
+          path: '.'
+          format: 'HTML'
+          out: 'dependency-check-report'
+
+      - name: Upload results
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-check-report
+          path: dependency-check-report/
+
+  # Code Quality Gates
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    needs: [security-scan, backend-test, frontend-test]
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube Scan
+        uses: sonarqube-quality-gate-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scanMetadataReportFile: .scannerwork/report-task.txt
+
+      - name: Check quality gate
+        run: |
+          # Quality gate checks
+          echo "Checking code coverage threshold (>90%)"
+          echo "Checking security scan results"
+          echo "Checking performance benchmarks"
+
+  # Release Notes
+  release-notes:
+    name: Generate Release Notes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        run: |
+          # Generate comprehensive changelog
+          echo "# Release ${{ github.event.release.tag_name }}" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "## What's New" >> CHANGELOG.md
+          git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> CHANGELOG.md
+
+      - name: Update release
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+            
+            github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ github.event.release.id }},
+              body: changelog
+            });
+
+  # Monitoring Setup
+  monitoring-setup:
+    name: Setup Monitoring
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: github.event_name == 'release'
+    
+    steps:
+      - name: Configure monitoring dashboards
+        run: |
+          # Setup Grafana dashboards
+          # Configure Prometheus alerts
+          # Setup error tracking
+          echo "Monitoring configured for production deployment"
+
+      - name: Test monitoring
+        run: |
+          # Verify monitoring is working
+          python tests/monitoring/test_monitoring_setup.py

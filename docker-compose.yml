@@ -1,0 +1,343 @@
+version: '3.8'
+
+services:
+  # =============================================================================
+  # Core Application Services
+  # =============================================================================
+  
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      args:
+        BUILD_DATE: ${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}
+        VCS_REF: ${VCS_REF:-$(git rev-parse HEAD)}
+        VERSION: ${VERSION:-latest}
+    image: fundcast/api:${VERSION:-latest}
+    container_name: fundcast_api
+    restart: unless-stopped
+    
+    environment:
+      # Application
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      
+      # Database
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-fundcast123}@postgres:5432/${POSTGRES_DB:-fundcast}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-20}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-0}
+      
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      
+      # Security
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      AI_DEFENSE_ENABLED: ${AI_DEFENSE_ENABLED:-true}
+      
+      # External Services
+      LEMONSQUEEZY_API_KEY: ${LEMONSQUEEZY_API_KEY:-}
+      LEMONSQUEEZY_WEBHOOK_SECRET: ${LEMONSQUEEZY_WEBHOOK_SECRET:-}
+      
+      # Observability
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-http://jaeger:4317}
+      OTEL_SERVICE_NAME: fundcast-api
+      
+      # Performance
+      WORKERS: ${API_WORKERS:-4}
+      
+    ports:
+      - "${API_PORT:-8000}:8000"
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    volumes:
+      - api_logs:/app/logs
+      - api_data:/app/data
+    
+    networks:
+      - fundcast_network
+    
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.fundcast.local`)"
+      - "traefik.http.routers.api.entrypoints=web"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Frontend Application
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+      args:
+        BUILD_DATE: ${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}
+        VCS_REF: ${VCS_REF:-$(git rev-parse HEAD)}
+        VERSION: ${VERSION:-latest}
+    image: fundcast/frontend:${VERSION:-latest}
+    container_name: fundcast_frontend
+    restart: unless-stopped
+    
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_ENVIRONMENT: ${ENVIRONMENT:-production}
+      
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    
+    depends_on:
+      - api
+    
+    networks:
+      - fundcast_network
+    
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`fundcast.local`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+
+  # =============================================================================
+  # Database Services
+  # =============================================================================
+  
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: fundcast_postgres
+    restart: unless-stopped
+    
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fundcast}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fundcast123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+      
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+      
+    networks:
+      - fundcast_network
+      
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_stat_statements,pgaudit
+      -c pg_stat_statements.track=all
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+      
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-fundcast}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: fundcast_redis
+    restart: unless-stopped
+    
+    command: redis-server --appendonly yes --replica-read-only no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    
+    volumes:
+      - redis_data:/data
+      
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+      
+    networks:
+      - fundcast_network
+      
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # =============================================================================
+  # Monitoring & Observability
+  # =============================================================================
+  
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fundcast_prometheus
+    restart: unless-stopped
+    
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+      
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+      
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+      
+    networks:
+      - fundcast_network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fundcast_grafana
+    restart: unless-stopped
+    
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: false
+      GF_INSTALL_PLUGINS: grafana-piechart-panel,grafana-worldmap-panel
+      
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources
+      
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+      
+    networks:
+      - fundcast_network
+      
+    depends_on:
+      - prometheus
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: fundcast_jaeger
+    restart: unless-stopped
+    
+    environment:
+      COLLECTOR_OTLP_ENABLED: true
+      
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"
+      - "14268:14268"
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      
+    networks:
+      - fundcast_network
+
+  # =============================================================================
+  # Development & Testing Services
+  # =============================================================================
+  
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: fundcast_mailhog
+    restart: unless-stopped
+    profiles: ["dev", "test"]
+    
+    ports:
+      - "${MAILHOG_UI_PORT:-8025}:8025"
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      
+    networks:
+      - fundcast_network
+
+  # Load Testing
+  k6:
+    image: grafana/k6:latest
+    container_name: fundcast_k6
+    profiles: ["test"]
+    
+    volumes:
+      - ./tests/performance:/scripts
+      
+    networks:
+      - fundcast_network
+    
+    command: run --vus 10 --duration 30s /scripts/load_test.js
+
+  # =============================================================================
+  # Reverse Proxy & Load Balancer
+  # =============================================================================
+  
+  traefik:
+    image: traefik:v3.0
+    container_name: fundcast_traefik
+    restart: unless-stopped
+    profiles: ["prod"]
+    
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL:-admin@fundcast.ai}"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+      
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+      
+    networks:
+      - fundcast_network
+
+# =============================================================================
+# Networks
+# =============================================================================
+
+networks:
+  fundcast_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# =============================================================================
+# Volumes
+# =============================================================================
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  api_logs:
+    driver: local
+  api_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  traefik_letsencrypt:
+    driver: local
