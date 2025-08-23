@@ -1,327 +1,167 @@
-# 🚀 FundCast: AI-First Fintech Revolution
+# FundCast
 
-<div align="center">
+A social funding and prediction market platform for startup founders.
 
-**The World's Most Advanced Social Funding & Forecasting Platform**
+## Overview
 
-*Empowering SaaS founders with AI-driven insights, institutional-grade security, and seamless regulatory compliance*
+FundCast combines prediction markets with social funding to help startup founders raise capital and make informed business decisions. The platform enables founders to participate in prediction markets about industry outcomes while connecting with potential investors through compliance-ready fundraising tools.
 
----
+## Features
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/kakashi3lite/FundCast/ci.yml?branch=main&label=build&logo=github)](https://github.com/kakashi3lite/FundCast/actions)
-[![Security Score](https://img.shields.io/badge/security-OWASP%20ASVS%20L2-green?logo=shield)](./SECURITY.md)
-[![Test Coverage](https://img.shields.io/badge/coverage-95%25+-brightgreen?logo=codecov)](https://codecov.io/gh/kakashi3lite/FundCast)
-[![Compliance](https://img.shields.io/badge/compliance-SEC%20Reg%20CF%20%7C%20506(c)-blue?logo=balance-scale)](./docs/compliance/)
-[![Docker](https://img.shields.io/badge/docker-multi--arch-blue?logo=docker)](https://ghcr.io/kakashi3lite/fundcast)
-[![License](https://img.shields.io/badge/license-MIT-blue?logo=open-source-initiative)](LICENSE)
-[![API Documentation](https://img.shields.io/badge/docs-OpenAPI%203.0-85EA2D?logo=swagger)](https://kakashi3lite.github.io/FundCast/api/)
+**Prediction Markets**
+- Binary and categorical markets for startup and tech industry outcomes
+- Real-time price updates and order matching
+- Market creation tools for community-driven predictions
 
-**[🌐 Live Demo](https://fundcast.ai)** • **[📚 Documentation](https://kakashi3lite.github.io/FundCast)** • **[🛡️ Security](./SECURITY.md)** • **[🚀 Deploy Now](https://railway.app/template/fundcast)**
+**Social Funding**  
+- SEC Regulation CF and Rule 506(c) compliant fundraising
+- KYC/KYB verification workflows
+- Investor accreditation and compliance tracking
 
-</div>
+**Platform Tools**
+- User authentication and role-based access control
+- Real-time notifications and activity feeds
+- Portfolio tracking and analytics
 
----
+## Technology Stack
 
-## 🎯 **Why FundCast Changes Everything**
+**Backend**
+- Python 3.11 with FastAPI
+- PostgreSQL with pgvector for semantic search
+- Redis for caching and session management
+- Docker containerization
 
-### **The Problem: Traditional Fundraising is Broken**
-- 📊 **87% of SaaS startups fail to raise Series A** due to complex regulatory hurdles
-- 🕐 **6-12 months** average time to complete compliant fundraising processes  
-- 💰 **$50K-200K+** typical legal and compliance costs before raising dollar one
-- 🤝 **Limited investor access** restricted to existing networks and geography
-- 📈 **No data-driven insights** into market sentiment and funding probability
+**Frontend**
+- TypeScript and React
+- Next.js framework
+- Framer Motion for animations
+- Tailwind CSS for styling
 
-### **The Solution: AI-Powered, Compliance-Native Platform**
+**Infrastructure**
+- GitHub Actions for CI/CD
+- Docker multi-platform builds
+- Health checks and monitoring
+- Automated testing and linting
 
-<table>
-<tr>
-<td width="50%">
+## Getting Started
 
-**🔴 Traditional Platforms**
-- Manual compliance processes
-- Static legal documents  
-- Limited investor networks
-- No predictive insights
-- Months to market
-- High legal costs
-- Security as afterthought
+### Prerequisites
 
-</td>
-<td width="50%">
+- Docker and Docker Compose
+- Node.js 18+ (for local development)
+- Python 3.11+ (for local development)
 
-**🟢 FundCast Advantage**
-- AI-automated compliance workflows
-- Dynamic, intelligent documentation
-- Global prediction market insights  
-- Real-time funding probability scores
-- Days to compliant fundraising
-- Built-in legal framework
-- Security-first architecture
+### Development Setup
 
-</td>
-</tr>
-</table>
-
----
-
-## 🏆 **Production-Ready Excellence**
-
-<div align="center">
-
-### **🎉 100% PRODUCTION-READY PLATFORM**
-*Enterprise-grade infrastructure with zero-downtime deployment capability*
-
-</div>
-
-| Component | Status | Technology | Performance |
-|-----------|--------|------------|-------------|
-| **🔐 Authentication & RBAC** | ✅ Production | JWT + Multi-factor | <50ms response |
-| **🛡️ Security Framework** | ✅ OWASP ASVS L2 | Multi-layer protection | 99.9% threat block |
-| **⚖️ Compliance Engine** | ✅ SEC Ready | Reg CF + Rule 506(c) | Automated workflows |
-| **📊 Trading System** | ✅ Institutional | Dual-engine markets | <10ms execution |
-| **🤖 AI Inference** | ✅ Production | Semantic search + ML | Vector embeddings |
-| **🗄️ Database** | ✅ Scalable | PostgreSQL + pgvector | 10k+ TPS |
-| **☁️ Infrastructure** | ✅ Cloud Native | Docker + Kubernetes | Auto-scaling |
-| **🔄 CI/CD Pipeline** | ✅ Automated | 7 GitHub Actions | Zero-touch deploy |
-
----
-
-## 🎨 **What Makes FundCast Different**
-
-### **🤖 AI-First Architecture**
-- **Semantic Document Analysis**: Instantly extract key metrics from financial documents
-- **Funding Probability Engine**: ML models predict fundraising success with 87% accuracy
-- **Intelligent Compliance**: AI guides founders through regulatory requirements
-- **Market Sentiment Analysis**: Real-time analysis of investor interest and market trends
-
-### **🛡️ Enterprise Security**
-- **Zero-Trust Architecture**: Every request authenticated and authorized
-- **End-to-End Encryption**: AES-256-GCM with hardware security modules
-- **SOC 2 Type II Ready**: Comprehensive audit controls and monitoring
-- **Red Team Validated**: Penetration tested against OWASP Top 10
-
-### **⚖️ Built-in Compliance**
-- **SEC Regulation CF**: Automated workflows for $5M fundraising campaigns
-- **Rule 506(c) Support**: Accredited investor verification with Stripe/Persona
-- **Global KYC/KYB**: Multi-jurisdiction identity and business verification
-- **Audit-Ready Records**: Immutable compliance trails and reporting
-
----
-
-## 🏗️ **Technical Architecture**
-
-<div align="center">
-
-```mermaid
-graph TB
-    A[👥 Global Users] --> B[🌐 API Gateway<br/>Rate Limiting & Auth]
-    B --> C[🔐 Security Layer<br/>OWASP ASVS L2]
-    C --> D[🚀 FastAPI Backend<br/>Async + High Performance]
-    
-    D --> E[🤖 AI Inference Engine<br/>Semantic Search + ML]
-    D --> F[📊 Trading Engine<br/>Order Book + AMM]
-    D --> G[⚖️ Compliance Engine<br/>Reg CF + 506(c)]
-    
-    D --> H[🗄️ PostgreSQL<br/>Vector Database]
-    D --> I[⚡ Redis Cache<br/>Session + Rate Limiting]
-    
-    J[📈 Real-time Analytics] --> D
-    K[🔔 Event Processing] --> D
-    L[📊 Monitoring Stack] --> D
-    
-    style A fill:#e1f5fe
-    style D fill:#f3e5f5
-    style E fill:#fff3e0
-    style F fill:#e8f5e8
-    style G fill:#fce4ec
-```
-
-</div>
-
-### **🎯 Performance Benchmarks**
-- **API Response Time**: <200ms p95, <50ms p50
-- **Database Queries**: <10ms average, optimized indexes
-- **Concurrent Users**: 10,000+ simultaneous connections
-- **Market Data**: Real-time streaming with <100ms latency
-- **AI Inference**: <500ms semantic search responses
-
----
-
-## 🚀 **Quick Start Guide**
-
-### **⚡ One-Click Development**
 ```bash
-# 🐳 Docker Development Environment
-git clone https://github.com/kakashi3lite/FundCast.git
-cd FundCast
-make dev-start
+# Clone the repository
+git clone https://github.com/kakashi3lite/fundcast.git
+cd fundcast
 
-# 🌐 Access your development environment
-# • API Server: http://localhost:8000
-# • Database Admin: http://localhost:8080  
-# • Documentation: http://localhost:8001
+# Start development environment
+make dev
+
+# Run tests
+make test
+
+# Run linting
+make lint
 ```
 
-### **☁️ Production Deployment**
+The application will be available at:
+- API: http://localhost:8000
+- Frontend: http://localhost:3000
+- API Documentation: http://localhost:8000/docs
+
+### Production Deployment
+
 ```bash
-# 🚀 Deploy to any cloud provider
-docker run -p 8000:8000 \
-  -e DATABASE_URL=$DATABASE_URL \
-  -e SECRET_KEY=$SECRET_KEY \
-  ghcr.io/kakashi3lite/fundcast:latest
+# Build and deploy with Docker
+make build
+make up
 
-# 🌍 Kubernetes ready
-kubectl apply -f k8s/
+# Or deploy to cloud platforms
+# See deployment documentation for specific instructions
 ```
 
-### **🔧 VS Code Development**
-1. **Install**: [VS Code](https://code.visualstudio.com/) + [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-2. **Open**: `Ctrl+Shift+P` → "Reopen in Container"  
-3. **Start Coding**: Full environment with PostgreSQL, Redis, and 25+ extensions
+## API Documentation
+
+Interactive API documentation is available at `/docs` when running the application. The API follows OpenAPI 3.0 standards and includes:
+
+- Authentication endpoints
+- User management
+- Market operations  
+- Compliance workflows
+- Real-time WebSocket connections
+
+## Testing
+
+```bash
+# Run all tests
+make test
+
+# Run specific test types
+make test-unit        # Unit tests
+make test-integration # Integration tests
+make test-e2e         # End-to-end tests
+
+# Generate coverage report
+make coverage
+```
+
+## Security
+
+The platform implements multiple security layers:
+
+- OWASP security headers and middleware
+- JWT authentication with refresh tokens
+- Input validation and sanitization
+- Rate limiting and DDoS protection
+- Encrypted data storage
+
+See [SECURITY.md](SECURITY.md) for detailed security information.
+
+## Compliance
+
+FundCast supports regulatory compliance for:
+
+- SEC Regulation Crowdfunding (Reg CF)
+- SEC Rule 506(c) private placements
+- KYC/KYB identity verification
+- Audit trails and reporting
+
+Compliance features are configurable and can be adapted for different jurisdictions.
+
+## Contributing
+
+We welcome contributions to FundCast. Please read our [Contributing Guide](CONTRIBUTING.md) for information about:
+
+- Code style and standards
+- Pull request process  
+- Issue reporting
+- Development workflows
+
+## Documentation
+
+Additional documentation is available in the `/docs` directory:
+
+- [Architecture Overview](docs/architecture.md)
+- [API Reference](docs/api.md)
+- [Deployment Guide](docs/deployment.md)
+- [Compliance Guide](docs/compliance.md)
+
+## License
+
+This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
+
+## Support
+
+For questions and support:
+
+- GitHub Issues: Report bugs and feature requests
+- Email: support@fundcast.ai
+- Documentation: Comprehensive guides and API reference
 
 ---
 
-## 💼 **Use Cases & Success Stories**
-
-### **🏆 For SaaS Founders**
-> *"FundCast reduced our fundraising timeline from 8 months to 3 weeks. The AI compliance engine saved us $150K in legal fees."*  
-> **— Sarah Chen, CEO of DataFlow (raised $2.3M)**
-
-- 📈 **Faster Time-to-Market**: Launch compliant campaigns in days, not months
-- 💰 **Reduced Legal Costs**: Built-in compliance workflows eliminate expensive consultations  
-- 🎯 **Higher Success Rate**: AI insights improve pitch effectiveness by 340%
-- 🌍 **Global Reach**: Access international investors through prediction markets
-
-### **🏛️ For Enterprise & Compliance**
-> *"The audit trail and compliance reporting exceeded our expectations. SOX and GDPR compliance was seamless."*  
-> **— Michael Torres, Chief Compliance Officer, FinTech Corp**
-
-- ✅ **Regulatory Confidence**: Pre-built compliance for SEC, GDPR, SOX requirements
-- 📊 **Real-time Monitoring**: Automated compliance checking and violation alerts
-- 🔍 **Audit Ready**: Immutable records and comprehensive reporting
-- 🛡️ **Risk Management**: Advanced fraud detection and investor verification
-
-### **💹 For Investors & Market Makers**
-> *"The dual trading engine provides excellent liquidity while the AI insights give us alpha on early-stage opportunities."*  
-> **— David Kim, Managing Partner, Velocity Ventures**
-
-- 📊 **Market Intelligence**: Real-time sentiment analysis and funding probability scores
-- ⚡ **High-Frequency Trading**: <10ms execution with institutional-grade infrastructure  
-- 🔮 **Predictive Analytics**: ML models identify promising investments before the crowd
-- 🌐 **Portfolio Diversification**: Access to global startup ecosystem
-
----
-
-## 🛠️ **Enterprise Features**
-
-### **🔄 DevOps & Automation**
-- **7 GitHub Actions Workflows**: CI/CD, security, documentation, releases
-- **Automated Testing**: 95%+ coverage with AI-powered test generation
-- **Blue-Green Deployment**: Zero-downtime production releases
-- **Infrastructure as Code**: Complete Terraform and Kubernetes configs
-
-### **📊 Observability & Monitoring** 
-- **OpenTelemetry Integration**: Distributed tracing and metrics
-- **Performance Monitoring**: Real-time application and infrastructure insights
-- **Security Analytics**: Threat detection and incident response automation
-- **Business Intelligence**: Custom dashboards and executive reporting
-
-### **🔐 Security & Compliance**
-- **Multi-Factor Authentication**: TOTP, SMS, and hardware key support
-- **Role-Based Access Control**: Fine-grained permissions with audit logging
-- **Data Loss Prevention**: PII detection and automatic redaction
-- **Incident Response**: Automated breach detection and containment
-
----
-
-## 📈 **Market Opportunity**
-
-### **🌍 Total Addressable Market**
-- **$1.2T Global FinTech Market** (growing 23% annually)
-- **$847B Crowdfunding Market** by 2030
-- **300K+ SaaS Companies** seeking funding globally
-- **$156B Prediction Markets** emerging sector
-
-### **🎯 Competitive Advantage**
-| Feature | FundCast | Traditional Platforms | Competitive Gap |
-|---------|----------|----------------------|-----------------|
-| **AI Integration** | ✅ Native | ❌ None | Revolutionary |
-| **Compliance Automation** | ✅ Built-in | 🔶 Manual | 95% time savings |
-| **Security Standard** | ✅ ASVS L2 | 🔶 Basic | Enterprise-grade |
-| **Prediction Markets** | ✅ Dual Engine | ❌ None | Unique offering |
-| **Development Speed** | ✅ Days | 🔶 Months | 10x faster |
-
----
-
-## 🤝 **Community & Ecosystem**
-
-### **🌟 Contributing**
-We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for:
-- 🐛 **Bug Reports**: Help us improve platform stability
-- 💡 **Feature Requests**: Shape the future of fundraising technology
-- 🔧 **Code Contributions**: Join our world-class engineering team
-- 📚 **Documentation**: Help founders succeed with better guides
-
-### **🆘 Support Channels**
-- 💬 **Discord Community**: [Join 2,000+ founders](https://discord.gg/fundcast)
-- 📧 **Email Support**: [support@fundcast.ai](mailto:support@fundcast.ai)
-- 🐙 **GitHub Issues**: [Report bugs and request features](https://github.com/kakashi3lite/FundCast/issues)
-- 📖 **Documentation**: [Comprehensive guides and tutorials](https://kakashi3lite.github.io/FundCast)
-
----
-
-## 🗺️ **Roadmap**
-
-### **🎯 Q1 2024: Scale & Performance**
-- [ ] **Multi-tenant Architecture**: Enterprise customer isolation
-- [ ] **Advanced Analytics**: Machine learning insights dashboard  
-- [ ] **Mobile Apps**: iOS and Android native applications
-- [ ] **API Marketplace**: Third-party integrations and plugins
-
-### **🚀 Q2 2024: Global Expansion**  
-- [ ] **International Compliance**: EU, UK, Asia-Pacific regulations
-- [ ] **Multi-currency Support**: Global payment processing
-- [ ] **Localization**: Support for 12+ languages and regions
-- [ ] **Regional Partnerships**: Local compliance and banking integration
-
-### **🔮 Future Vision**
-- [ ] **AI Advisors**: Personal fundraising consultants powered by large language models
-- [ ] **DeFi Integration**: Decentralized finance and tokenization features  
-- [ ] **Virtual Data Rooms**: AI-powered due diligence automation
-- [ ] **ESG Scoring**: Environmental and social impact measurement
-
----
-
-## 📜 **Legal & Compliance**
-
-### **🏛️ Regulatory Status**
-- **SEC Registration**: Funding Portal registration in progress
-- **FINRA Compliance**: Member firm application submitted
-- **Data Privacy**: GDPR, CCPA, and SOX compliant
-- **International**: Expanding to UK FCA and EU ESMA jurisdictions
-
-### **⚖️ Risk Disclosure**
-*Investment opportunities involve risk. Past performance does not guarantee future results. Please read our [Risk Disclosure](./RISK_DISCLOSURE.md) and consult financial advisors.*
-
----
-
-<div align="center">
-
-## 🎉 **Ready to Transform Your Fundraising?**
-
-### **[🚀 Start Free Trial](https://app.fundcast.ai/signup)** • **[📅 Schedule Demo](https://calendly.com/fundcast/demo)** • **[💬 Join Community](https://discord.gg/fundcast)**
-
----
-
-**Built with ❤️ by the FundCast Team**  
-*Empowering the next generation of entrepreneurs with AI-driven financial technology*
-
-[![Follow on Twitter](https://img.shields.io/twitter/follow/FundCastAI?style=social)](https://twitter.com/FundCastAI)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?logo=linkedin)](https://linkedin.com/company/fundcast)
-[![GitHub Stars](https://img.shields.io/github/stars/kakashi3lite/FundCast?style=social)](https://github.com/kakashi3lite/FundCast)
-
----
-
-*© 2024 FundCast. All rights reserved. [Privacy Policy](./PRIVACY.md) • [Terms of Service](./TERMS.md) • [Security](./SECURITY.md)*
-
-</div>
+*FundCast is a financial technology platform. Investment opportunities involve risk and regulatory considerations. Please consult appropriate advisors and review all applicable regulations.*
