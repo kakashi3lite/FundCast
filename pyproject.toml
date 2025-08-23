@@ -73,9 +73,21 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
+    "pytest-benchmark>=4.0.0",
     "httpx>=0.25.0",
     "faker>=20.1.0",
     "hypothesis>=6.88.0",
+    "mutmut>=2.4.0",
+    "coverage[toml]>=7.0.0",
+    
+    # Property-based testing
+    "hypothesis-jsonschema>=0.23.0",
+    "hypothesis-sqlalchemy>=0.2.0",
+    
+    # Performance testing
+    "locust>=2.17.0",
+    "memory-profiler>=0.61.0",
+    "py-spy>=0.3.14",
     
     # Code Quality
     "ruff>=0.1.6",
@@ -84,14 +96,18 @@ dev = [
     "isort>=5.12.0",
     "bandit>=1.7.5",
     "semgrep>=1.45.0",
+    "vulture>=2.10",  # Dead code detection
+    "radon>=6.0.1",   # Code complexity metrics
     
     # Documentation
     "mkdocs>=1.5.3",
     "mkdocs-material>=9.4.7",
+    "mkdocs-mermaid2-plugin>=1.1.0",
     
     # Development
     "watchdog>=3.0.0",
     "pre-commit>=3.5.0",
+    "rich>=13.7.0",   # Better terminal output
 ]
 
 security = [

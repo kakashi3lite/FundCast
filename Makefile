@@ -1,6 +1,6 @@
 # FundCast Development Makefile
 
-.PHONY: help dev test lint bench build up down clean install check security
+.PHONY: help dev test test-property test-mutation lint bench build up down clean install check check-full security
 
 # Default target
 help:
@@ -8,29 +8,32 @@ help:
 	@echo "============================="
 	@echo ""
 	@echo "Development:"
-	@echo "  dev        Start development servers (API + UI)"
-	@echo "  install    Install dependencies"
-	@echo "  check      Run all checks (lint + test + security)"
+	@echo "  dev          Start development servers (API + UI)"
+	@echo "  install      Install dependencies"
+	@echo "  check        Run standard checks (lint + test + security + property)"
+	@echo "  check-full   Run comprehensive checks (includes mutation + benchmarks)"
 	@echo ""
 	@echo "Testing:"
-	@echo "  test       Run all tests with coverage"
-	@echo "  test-unit  Run unit tests only"
-	@echo "  test-e2e   Run end-to-end tests"
+	@echo "  test         Run all tests with coverage"
+	@echo "  test-unit    Run unit tests only"
+	@echo "  test-e2e     Run end-to-end tests"
+	@echo "  test-property Run property-based tests with Hypothesis"
+	@echo "  test-mutation Run mutation testing to validate test quality"
 	@echo ""
 	@echo "Code Quality:"
-	@echo "  lint       Run linting and formatting"
-	@echo "  security   Run security scans"
-	@echo "  bench      Run performance benchmarks"
+	@echo "  lint         Run linting, type checking, and code analysis"
+	@echo "  security     Run security scans"
+	@echo "  bench        Run performance benchmarks"
 	@echo ""
 	@echo "Build & Deploy:"
-	@echo "  build      Build Docker containers"
-	@echo "  up         Start with docker-compose"
-	@echo "  down       Stop docker-compose"
-	@echo "  clean      Clean build artifacts"
+	@echo "  build        Build Docker containers"
+	@echo "  up           Start with docker-compose"
+	@echo "  down         Stop docker-compose"
+	@echo "  clean        Clean build artifacts"
 	@echo ""
 	@echo "Utilities:"
-	@echo "  sbom       Generate Software Bill of Materials"
-	@echo "  migrate    Run database migrations"
+	@echo "  sbom         Generate Software Bill of Materials"
+	@echo "  migrate      Run database migrations"
 
 # Development
 dev:
@@ -66,6 +69,24 @@ test-e2e:
 	@echo "Running end-to-end tests..."
 	@python -m pytest tests/e2e/ -v
 
+test-property:
+	@echo "Running property-based tests..."
+	@python -m pytest tests/property/ -v --hypothesis-show-statistics
+
+test-mutation:
+	@echo "Running mutation tests..."
+	@mutmut run --paths-to-mutate src/
+	@echo "Generating mutation test report..."
+	@mutmut html
+
+bench:
+	@echo "Running performance benchmarks..."
+	@python -m pytest tests/benchmarks/ -v --benchmark-only --benchmark-sort=mean
+	@echo "→ API endpoint benchmarks..."
+	@python scripts/benchmark_api.py
+	@echo "→ Database query benchmarks..."
+	@python scripts/benchmark_db.py
+
 # Code Quality
 lint:
 	@echo "Running code quality checks..."
@@ -77,6 +98,11 @@ lint:
 	@black --check src/ tests/
 	@echo "→ Python import sorting..."
 	@isort --check-only src/ tests/
+	@echo "→ Dead code detection..."
+	@vulture src/ tests/ --min-confidence 80
+	@echo "→ Code complexity analysis..."
+	@radon cc src/ --min C
+	@radon mi src/ --min B
 	@echo "→ Node.js linting..."
 	@cd src/ui && npm run lint
 
@@ -150,8 +176,11 @@ sbom:
 	@cd src/ui && npm audit --json > ../sbom-node.json
 	@echo "SBOM files generated: sbom-python.json, sbom-node.json"
 
-check: lint security test
+check: lint security test test-property
 	@echo "✅ All checks passed!"
+
+check-full: lint security test test-property test-mutation bench
+	@echo "✅ Full test suite completed!"
 
 # Environment setup
 env:

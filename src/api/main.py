@@ -37,6 +37,14 @@ from .middleware import (
     SecurityHeadersMiddleware,
     LoggingMiddleware,
     RequestValidationMiddleware,
+    PerformanceMiddleware,
+)
+from .cache import get_cache, warm_cache
+from .database_optimization import initialize_database_pools, cleanup_database_pools
+from .async_tasks import get_task_manager
+from .sre import (
+    get_slo_manager, setup_default_slos, get_monitoring_service,
+    SREMiddleware, CircuitBreakerMiddleware
 )
 
 # Configure structured logging
@@ -88,33 +96,106 @@ def setup_observability() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan management."""
+    """Application lifespan management with performance optimizations."""
     # Startup
+    startup_start = time.time()
     logger.info("Starting FundCast API", version=__version__)
     
-    # Setup observability
-    setup_observability()
-    
-    # Initialize database
-    engine = create_async_engine(
-        settings.DATABASE_URL,
-        echo=settings.DEBUG,
-        pool_size=20,
-        max_overflow=0,
-        pool_pre_ping=True,
-        pool_recycle=300,
-    )
-    
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    
-    logger.info("Database initialized")
-    
-    yield
-    
-    # Shutdown
-    logger.info("Shutting down FundCast API")
-    await engine.dispose()
+    try:
+        # Setup observability
+        setup_observability()
+        
+        # Initialize optimized database pools
+        await initialize_database_pools()
+        logger.info("Optimized database pools initialized")
+        
+        # Initialize cache system
+        cache = await get_cache()
+        await cache.connect()
+        logger.info("Multi-layer cache system initialized")
+        
+        # Initialize task manager
+        task_manager = await get_task_manager()
+        await task_manager.start(num_workers=5)
+        logger.info("Async task manager started")
+        
+        # Initialize SRE systems
+        await setup_default_slos()
+        slo_manager = await get_slo_manager()
+        await slo_manager.start_monitoring(interval_seconds=60)
+        logger.info("SLO monitoring started")
+        
+        monitoring_service = await get_monitoring_service()
+        await monitoring_service.start_monitoring(interval_seconds=60)
+        logger.info("Advanced monitoring started")
+        
+        # Initialize database tables (using original engine for compatibility)
+        engine = create_async_engine(
+            settings.DATABASE_URL,
+            echo=settings.DEBUG,
+            pool_size=20,
+            max_overflow=0,
+            pool_pre_ping=True,
+            pool_recycle=300,
+        )
+        
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        
+        await engine.dispose()  # Close temporary engine
+        
+        # Warm cache with common queries
+        if not settings.DEBUG:
+            try:
+                await warm_cache([
+                    # Add cache warming functions here
+                ])
+                logger.info("Cache warming completed")
+            except Exception as e:
+                logger.warning("Cache warming failed", error=str(e))
+        
+        startup_duration = time.time() - startup_start
+        logger.info("FundCast API startup completed", duration=f"{startup_duration:.2f}s")
+        
+        yield
+        
+    except Exception as e:
+        logger.error("Startup failed", error=str(e), exc_info=True)
+        raise
+    finally:
+        # Shutdown sequence
+        shutdown_start = time.time()
+        logger.info("Shutting down FundCast API")
+        
+        try:
+            # Stop SRE systems
+            slo_manager = await get_slo_manager()
+            await slo_manager.stop_monitoring()
+            logger.info("SLO monitoring stopped")
+            
+            monitoring_service = await get_monitoring_service()
+            await monitoring_service.stop_monitoring()
+            logger.info("Advanced monitoring stopped")
+            
+            # Stop task manager
+            task_manager = await get_task_manager()
+            await task_manager.stop()
+            logger.info("Task manager stopped")
+            
+            # Clean up cache
+            cache = await get_cache()
+            await cache.clear()
+            logger.info("Cache cleared")
+            
+            # Close database pools
+            await cleanup_database_pools()
+            logger.info("Database pools closed")
+            
+        except Exception as e:
+            logger.error("Shutdown error", error=str(e), exc_info=True)
+        
+        shutdown_duration = time.time() - shutdown_start
+        logger.info("FundCast API shutdown completed", duration=f"{shutdown_duration:.2f}s")
 
 
 def create_app() -> FastAPI:
@@ -142,7 +223,10 @@ def create_app() -> FastAPI:
         max_age=86400,  # 24 hours
     )
     
-    # Custom middleware
+    # Custom middleware (order matters for performance!)
+    app.add_middleware(SREMiddleware)  # SRE monitoring first for comprehensive coverage
+    app.add_middleware(CircuitBreakerMiddleware)  # Circuit breakers for resilience
+    app.add_middleware(PerformanceMiddleware)  # Monitor performance
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(RequestValidationMiddleware)
     app.add_middleware(RateLimitMiddleware)
@@ -165,6 +249,95 @@ def create_app() -> FastAPI:
             "timestamp": time.time(),
             "environment": settings.ENVIRONMENT,
         }
+    
+    # Performance monitoring endpoints
+    @app.get("/admin/stats", tags=["admin"])
+    async def system_stats() -> Dict[str, Any]:
+        """Get system performance statistics."""
+        cache = await get_cache()
+        task_manager = await get_task_manager()
+        
+        return {
+            "cache_stats": await cache.get_stats(),
+            "task_stats": task_manager.get_stats(),
+            "system_info": {
+                "version": __version__,
+                "environment": settings.ENVIRONMENT,
+                "uptime": time.time() - startup_start,
+            }
+        }
+    
+    @app.get("/admin/sre/dashboard", tags=["admin"])
+    async def sre_dashboard() -> Dict[str, Any]:
+        """Get comprehensive SRE monitoring dashboard."""
+        monitoring_service = await get_monitoring_service()
+        dashboard_data = await monitoring_service.dashboard.get_dashboard_data()
+        return dashboard_data
+    
+    @app.get("/admin/sre/slos", tags=["admin"])
+    async def slo_status() -> Dict[str, Any]:
+        """Get Service Level Objective status."""
+        slo_manager = await get_slo_manager()
+        slo_status = await slo_manager.get_all_slo_status()
+        
+        return {
+            "slos": {
+                name: {
+                    "current_percentage": status.current_percentage,
+                    "target_percentage": status.target_percentage,
+                    "error_budget_remaining": status.error_budget_remaining,
+                    "status": status.status.value,
+                    "measurements_count": status.measurements_count
+                }
+                for name, status in slo_status.items()
+            }
+        }
+    
+    @app.get("/admin/sre/circuit-breakers", tags=["admin"])
+    async def circuit_breaker_status() -> Dict[str, Any]:
+        """Get circuit breaker status."""
+        from .sre.circuit_breaker import circuit_breaker_health_check
+        return await circuit_breaker_health_check()
+    
+    @app.post("/admin/sre/circuit-breakers/{name}/reset", tags=["admin"])
+    async def reset_circuit_breaker(name: str) -> Dict[str, str]:
+        """Reset a specific circuit breaker."""
+        from .sre.circuit_breaker import get_circuit_breaker
+        
+        try:
+            breaker = get_circuit_breaker(name)
+            await breaker.reset()
+            return {"status": f"Circuit breaker '{name}' reset successfully"}
+        except Exception as e:
+            raise HTTPException(status_code=404, detail=f"Circuit breaker '{name}' not found")
+    
+    @app.post("/admin/cache/clear", tags=["admin"])
+    async def clear_cache() -> Dict[str, str]:
+        """Clear all cache layers."""
+        cache = await get_cache()
+        await cache.clear()
+        return {"status": "cache_cleared"}
+    
+    @app.get("/admin/tasks/{task_id}", tags=["admin"])
+    async def get_task_result(task_id: str) -> Dict[str, Any]:
+        """Get task execution result."""
+        task_manager = await get_task_manager()
+        result = task_manager.get_task_result(task_id)
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        return {
+            "task_id": task_id,
+            "status": result.status,
+            "result": result.result,
+            "error": result.error,
+            "duration": result.duration,
+            "retry_count": result.retry_count,
+        }
+    
+    # Store startup time for uptime calculation
+    startup_start = time.time()
     
     # Exception handlers
     @app.exception_handler(ValidationError)

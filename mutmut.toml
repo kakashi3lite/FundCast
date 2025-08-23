@@ -1,0 +1,68 @@
+# Mutation testing configuration for FundCast
+# Run with: mutmut run --paths-to-mutate src/
+
+[tool.mutmut]
+
+# Paths to mutate
+paths_to_mutate = "src/"
+
+# Test command to run for each mutation
+test_command = "python -m pytest tests/unit/ tests/integration/ -x --tb=no -q"
+
+# Timeout for each test run (seconds)
+test_timeout = 300
+
+# Exclude specific files from mutation testing
+exclude_files = [
+    "src/api/__init__.py",
+    "src/api/config.py",  # Configuration files shouldn't be mutated
+    "src/api/exceptions.py",  # Exception definitions are straightforward
+]
+
+# Exclude specific functions/methods
+exclude_functions = [
+    "__init__",
+    "__str__",
+    "__repr__",
+    "main",
+    "create_app",
+]
+
+# Exclude specific mutation types
+exclude_mutation_types = [
+    # Skip string literal mutations that might break logging
+    "string",
+]
+
+# Additional patterns to exclude from mutation
+exclude_patterns = [
+    # Skip database schema definitions
+    "**/database.py:*Column*",
+    "**/database.py:*Table*", 
+    
+    # Skip middleware setup (order-dependent)
+    "**/main.py:*add_middleware*",
+    
+    # Skip logging configuration
+    "**/main.py:*structlog*",
+    
+    # Skip import statements
+    "import *",
+    "from * import *",
+]
+
+# Parallel execution settings
+processes = 4  # Number of parallel processes
+
+# Output settings
+show_times = true
+show_diff = true
+html_output = "mutmut_report.html"
+
+# Cache settings to speed up reruns
+use_cache = true
+cache_only = false
+
+# Survival threshold - what percentage of mutations should survive
+# Lower is better (means tests caught more mutations)
+survival_threshold = 10.0  # 10% survival rate target
