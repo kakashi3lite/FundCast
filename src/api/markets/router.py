@@ -1,27 +1,23 @@
 """Prediction markets routes with order book and AMM support."""
 
-from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any, Union
 import uuid
-import math
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 import structlog
-from fastapi import APIRouter, Depends, Request, Query, Path, HTTPException
+from fastapi import APIRouter, Depends, Path, Query
 from pydantic import BaseModel, Field, validator
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, and_, or_, func, text
-from sqlalchemy.orm import selectinload
 
-from ..database import get_database, User, Market, MarketPosition
+from ..database import Market, MarketPosition, User, get_database
 from ..exceptions import (
-    ResourceNotFoundError, 
-    AuthorizationError, 
-    ValidationError, 
+    AuthorizationError,
     MarketError,
-    InferenceError
+    ResourceNotFoundError,
+    ValidationError,
 )
 from ..users.dependencies import get_current_user, require_permissions
-from ..config import settings
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -30,36 +26,40 @@ router = APIRouter()
 # Request/Response Models
 class MarketCreate(BaseModel):
     """Create prediction market request."""
+
     title: str = Field(..., min_length=10, max_length=255)
     description: str = Field(..., min_length=50, max_length=2000)
-    category: str = Field(..., regex="^(business|finance|crypto|sports|politics|technology)$")
+    category: str = Field(
+        ..., regex="^(business|finance|crypto|sports|politics|technology)$"
+    )
     market_type: str = Field(default="binary", regex="^(binary|categorical|scalar)$")
     engine_type: str = Field(default="orderbook", regex="^(orderbook|amm)$")
     resolution_source: Optional[str] = Field(None, max_length=500)
     resolution_date: Optional[datetime] = None
     outcomes: List[str] = Field(default=["Yes", "No"])
     initial_liquidity: Optional[int] = Field(None, ge=100000)  # cents, min $1000
-    
-    @validator('resolution_date')
+
+    @validator("resolution_date")
     def validate_resolution_date(cls, v):
         if v and v <= datetime.utcnow():
-            raise ValueError('Resolution date must be in the future')
+            raise ValueError("Resolution date must be in the future")
         if v and v > datetime.utcnow() + timedelta(days=365):
-            raise ValueError('Resolution date cannot be more than 1 year in the future')
+            raise ValueError("Resolution date cannot be more than 1 year in the future")
         return v
-    
-    @validator('outcomes')
+
+    @validator("outcomes")
     def validate_outcomes(cls, v, values):
-        market_type = values.get('market_type', 'binary')
-        if market_type == 'binary' and len(v) != 2:
-            raise ValueError('Binary markets must have exactly 2 outcomes')
-        if market_type == 'categorical' and (len(v) < 2 or len(v) > 10):
-            raise ValueError('Categorical markets must have 2-10 outcomes')
+        market_type = values.get("market_type", "binary")
+        if market_type == "binary" and len(v) != 2:
+            raise ValueError("Binary markets must have exactly 2 outcomes")
+        if market_type == "categorical" and (len(v) < 2 or len(v) > 10):
+            raise ValueError("Categorical markets must have 2-10 outcomes")
         return v
 
 
 class MarketUpdate(BaseModel):
     """Update market request."""
+
     description: Optional[str] = Field(None, min_length=50, max_length=2000)
     resolution_source: Optional[str] = Field(None, max_length=500)
     resolution_date: Optional[datetime] = None
@@ -68,22 +68,26 @@ class MarketUpdate(BaseModel):
 
 class MarketOrder(BaseModel):
     """Place market order request."""
+
     outcome: str = Field(..., min_length=1, max_length=100)
     side: str = Field(..., regex="^(buy|sell)$")
     order_type: str = Field(default="market", regex="^(market|limit)$")
     quantity: int = Field(..., gt=0, le=1000000)  # Max 1M shares
-    price: Optional[float] = Field(None, ge=0.01, le=0.99)  # Probability between 1% and 99%
-    
-    @validator('price')
+    price: Optional[float] = Field(
+        None, ge=0.01, le=0.99
+    )  # Probability between 1% and 99%
+
+    @validator("price")
     def validate_price(cls, v, values):
-        order_type = values.get('order_type')
-        if order_type == 'limit' and v is None:
-            raise ValueError('Limit orders require a price')
+        order_type = values.get("order_type")
+        if order_type == "limit" and v is None:
+            raise ValueError("Limit orders require a price")
         return v
 
 
 class MarketTrade(BaseModel):
     """Market trade response."""
+
     id: str
     market_id: str
     user_id: str
@@ -97,6 +101,7 @@ class MarketTrade(BaseModel):
 
 class MarketPosition(BaseModel):
     """User market position response."""
+
     market_id: str
     outcome: str
     shares: float
@@ -108,6 +113,7 @@ class MarketPosition(BaseModel):
 
 class MarketStats(BaseModel):
     """Market statistics response."""
+
     market_id: str
     total_volume: int  # cents
     total_shares: int
@@ -119,6 +125,7 @@ class MarketStats(BaseModel):
 
 class MarketResponse(BaseModel):
     """Market details response."""
+
     id: str
     title: str
     description: str
@@ -139,6 +146,7 @@ class MarketResponse(BaseModel):
 
 class MarketList(BaseModel):
     """Market list response."""
+
     markets: List[MarketResponse]
     total: int
     page: int
@@ -153,7 +161,9 @@ def calculate_probability_from_shares(yes_shares: int, no_shares: int) -> float:
     return yes_shares / (yes_shares + no_shares)
 
 
-def calculate_amm_price(k: float, yes_liquidity: int, no_liquidity: int, trade_size: int, side: str) -> float:
+def calculate_amm_price(
+    k: float, yes_liquidity: int, no_liquidity: int, trade_size: int, side: str
+) -> float:
     """Calculate AMM price using constant product formula."""
     if side == "buy":
         # Calculate price for buying YES shares
@@ -161,11 +171,11 @@ def calculate_amm_price(k: float, yes_liquidity: int, no_liquidity: int, trade_s
         new_no_liquidity = k / new_yes_liquidity
         price_impact = (no_liquidity - new_no_liquidity) / trade_size
     else:
-        # Calculate price for selling YES shares  
+        # Calculate price for selling YES shares
         new_yes_liquidity = yes_liquidity - trade_size
         new_no_liquidity = k / new_yes_liquidity
         price_impact = (new_no_liquidity - no_liquidity) / trade_size
-    
+
     return max(0.01, min(0.99, price_impact))
 
 
@@ -185,14 +195,14 @@ async def create_market(
     db: AsyncSession = Depends(get_database),
 ):
     """Create a new prediction market (admin only)."""
-    
+
     logger.info(
         "Creating market",
         user_id=str(current_user.id),
         title=market_data.title,
         market_type=market_data.market_type,
     )
-    
+
     try:
         # Create market record
         market = Market(
@@ -210,11 +220,11 @@ async def create_market(
                 "initial_liquidity": market_data.initial_liquidity,
             },
         )
-        
+
         db.add(market)
         await db.commit()
         await db.refresh(market)
-        
+
         # Initialize AMM liquidity if specified
         if market_data.engine_type == "amm" and market_data.initial_liquidity:
             # Create initial liquidity positions
@@ -225,14 +235,15 @@ async def create_market(
                     outcome=outcome,
                     shares=market_data.initial_liquidity // len(market_data.outcomes),
                     avg_price=0.5,  # Start at 50% probability
-                    current_value=market_data.initial_liquidity // len(market_data.outcomes),
+                    current_value=market_data.initial_liquidity
+                    // len(market_data.outcomes),
                 )
                 db.add(position)
-        
+
         await db.commit()
-        
+
         logger.info("Market created successfully", market_id=str(market.id))
-        
+
         return MarketResponse(
             id=str(market.id),
             title=market.title,
@@ -242,7 +253,9 @@ async def create_market(
             engine_type=market.engine_type,
             status=market.status,
             resolution_source=market.resolution_source,
-            resolution_date=market.resolution_date.isoformat() if market.resolution_date else None,
+            resolution_date=(
+                market.resolution_date.isoformat() if market.resolution_date else None
+            ),
             resolved_at=None,
             resolution_value=None,
             outcomes=market_data.outcomes,
@@ -251,7 +264,7 @@ async def create_market(
             created_at=market.created_at.isoformat(),
             updated_at=market.updated_at.isoformat(),
         )
-        
+
     except Exception as e:
         logger.error("Market creation failed", error=str(e))
         raise MarketError("Failed to create market")
@@ -268,7 +281,7 @@ async def list_markets(
     db: AsyncSession = Depends(get_database),
 ):
     """List prediction markets with pagination and filtering."""
-    
+
     logger.info(
         "Listing markets",
         user_id=str(current_user.id),
@@ -276,16 +289,16 @@ async def list_markets(
         category=category,
         status=status,
     )
-    
+
     # Build query
     query = select(Market)
-    
+
     if category:
         query = query.where(Market.category == category)
-    
+
     if status:
         query = query.where(Market.status == status)
-    
+
     if search:
         search_term = f"%{search}%"
         query = query.where(
@@ -294,49 +307,55 @@ async def list_markets(
                 Market.description.ilike(search_term),
             )
         )
-    
+
     # Get total count
     count_result = await db.execute(
-        select(func.count(Market.id)).select_from(
-            query.subquery()
-        )
+        select(func.count(Market.id)).select_from(query.subquery())
     )
     total = count_result.scalar()
-    
+
     # Get paginated results
     offset = (page - 1) * per_page
     query = query.offset(offset).limit(per_page).order_by(Market.created_at.desc())
-    
+
     result = await db.execute(query)
     markets = result.scalars().all()
-    
+
     # Convert to response format
     market_responses = []
     for market in markets:
         outcomes = market.metadata.get("outcomes", ["Yes", "No"])
-        
+
         # Calculate current prices (simplified - would use actual market data)
         current_prices = {outcome: 0.5 for outcome in outcomes}
-        
-        market_responses.append(MarketResponse(
-            id=str(market.id),
-            title=market.title,
-            description=market.description,
-            category=market.category,
-            market_type=market.market_type,
-            engine_type=market.engine_type,
-            status=market.status,
-            resolution_source=market.resolution_source,
-            resolution_date=market.resolution_date.isoformat() if market.resolution_date else None,
-            resolved_at=market.resolved_at.isoformat() if market.resolved_at else None,
-            resolution_value=market.resolution_value,
-            outcomes=outcomes,
-            current_prices=current_prices,
-            total_volume=0,  # Would calculate from trades
-            created_at=market.created_at.isoformat(),
-            updated_at=market.updated_at.isoformat(),
-        ))
-    
+
+        market_responses.append(
+            MarketResponse(
+                id=str(market.id),
+                title=market.title,
+                description=market.description,
+                category=market.category,
+                market_type=market.market_type,
+                engine_type=market.engine_type,
+                status=market.status,
+                resolution_source=market.resolution_source,
+                resolution_date=(
+                    market.resolution_date.isoformat()
+                    if market.resolution_date
+                    else None
+                ),
+                resolved_at=(
+                    market.resolved_at.isoformat() if market.resolved_at else None
+                ),
+                resolution_value=market.resolution_value,
+                outcomes=outcomes,
+                current_prices=current_prices,
+                total_volume=0,  # Would calculate from trades
+                created_at=market.created_at.isoformat(),
+                updated_at=market.updated_at.isoformat(),
+            )
+        )
+
     return MarketList(
         markets=market_responses,
         total=total,
@@ -352,20 +371,20 @@ async def get_market(
     db: AsyncSession = Depends(get_database),
 ):
     """Get market details by ID."""
-    
+
     result = await db.execute(select(Market).where(Market.id == market_id))
     market = result.scalar_one_or_none()
-    
+
     if not market:
         raise ResourceNotFoundError("Market", str(market_id))
-    
+
     # Check market access
     if not validate_market_access(current_user, market.market_type):
         raise AuthorizationError("Insufficient verification for this market type")
-    
+
     outcomes = market.metadata.get("outcomes", ["Yes", "No"])
     current_prices = {outcome: 0.5 for outcome in outcomes}
-    
+
     return MarketResponse(
         id=str(market.id),
         title=market.title,
@@ -375,7 +394,9 @@ async def get_market(
         engine_type=market.engine_type,
         status=market.status,
         resolution_source=market.resolution_source,
-        resolution_date=market.resolution_date.isoformat() if market.resolution_date else None,
+        resolution_date=(
+            market.resolution_date.isoformat() if market.resolution_date else None
+        ),
         resolved_at=market.resolved_at.isoformat() if market.resolved_at else None,
         resolution_value=market.resolution_value,
         outcomes=outcomes,
@@ -395,7 +416,7 @@ async def place_order(
     db: AsyncSession = Depends(get_database),
 ):
     """Place a market order."""
-    
+
     logger.info(
         "Placing market order",
         user_id=str(current_user.id),
@@ -404,31 +425,31 @@ async def place_order(
         side=order.side,
         quantity=order.quantity,
     )
-    
+
     # Get market
     result = await db.execute(select(Market).where(Market.id == market_id))
     market = result.scalar_one_or_none()
-    
+
     if not market:
         raise ResourceNotFoundError("Market", str(market_id))
-    
+
     if market.status != "active":
         raise MarketError("Market is not active for trading", str(market_id))
-    
+
     # Validate outcome
     outcomes = market.metadata.get("outcomes", ["Yes", "No"])
     if order.outcome not in outcomes:
         raise ValidationError(f"Invalid outcome: {order.outcome}")
-    
+
     # Check market access
     if not validate_market_access(current_user, market.market_type):
         raise AuthorizationError("Insufficient verification for this market type")
-    
+
     # Validate user has sufficient balance (simplified check)
     max_cost = order.quantity * (order.price or 0.99) * 100  # Convert to cents
     if max_cost > 100000:  # $1000 limit for demo
         raise ValidationError("Insufficient balance for this order")
-    
+
     try:
         # Execute order based on engine type
         if market.engine_type == "orderbook":
@@ -436,8 +457,10 @@ async def place_order(
             execution_price = order.price or 0.5
         else:  # AMM
             # AMM price calculation
-            execution_price = calculate_amm_price(10000, 5000, 5000, order.quantity, order.side)
-        
+            execution_price = calculate_amm_price(
+                10000, 5000, 5000, order.quantity, order.side
+            )
+
         # Update or create user position
         position_result = await db.execute(
             select(MarketPosition).where(
@@ -449,18 +472,19 @@ async def place_order(
             )
         )
         position = position_result.scalar_one_or_none()
-        
+
         if position:
             # Update existing position
             if order.side == "buy":
                 new_shares = position.shares + order.quantity
                 new_avg_price = (
-                    (position.shares * position.avg_price + order.quantity * execution_price) / new_shares
-                )
+                    position.shares * position.avg_price
+                    + order.quantity * execution_price
+                ) / new_shares
             else:  # sell
                 new_shares = max(0, position.shares - order.quantity)
                 new_avg_price = position.avg_price  # Keep same avg price when selling
-            
+
             await db.execute(
                 update(MarketPosition)
                 .where(MarketPosition.id == position.id)
@@ -468,7 +492,9 @@ async def place_order(
                     shares=new_shares,
                     avg_price=new_avg_price,
                     current_value=int(new_shares * execution_price * 100),
-                    unrealized_pnl=int((execution_price - new_avg_price) * new_shares * 100),
+                    unrealized_pnl=int(
+                        (execution_price - new_avg_price) * new_shares * 100
+                    ),
                 )
             )
         else:
@@ -484,25 +510,27 @@ async def place_order(
                     unrealized_pnl=0,
                 )
                 db.add(new_position)
-        
+
         await db.commit()
-        
+
         logger.info(
             "Order executed",
             user_id=str(current_user.id),
             market_id=str(market_id),
             execution_price=execution_price,
         )
-        
+
         return {
             "order_id": str(uuid.uuid4()),
             "status": "filled",
             "execution_price": execution_price,
             "quantity_filled": order.quantity,
-            "fees": int(order.quantity * execution_price * 0.01 * 100),  # 1% fee in cents
+            "fees": int(
+                order.quantity * execution_price * 0.01 * 100
+            ),  # 1% fee in cents
             "timestamp": datetime.utcnow().isoformat(),
         }
-        
+
     except Exception as e:
         logger.error("Order execution failed", error=str(e))
         raise MarketError("Failed to execute order", str(market_id))
@@ -515,7 +543,7 @@ async def get_user_positions(
     db: AsyncSession = Depends(get_database),
 ):
     """Get user's positions in a market."""
-    
+
     result = await db.execute(
         select(MarketPosition).where(
             and_(
@@ -526,7 +554,7 @@ async def get_user_positions(
         )
     )
     positions = result.scalars().all()
-    
+
     return [
         MarketPosition(
             market_id=str(position.market_id),
@@ -535,8 +563,18 @@ async def get_user_positions(
             avg_price=float(position.avg_price),
             current_value=position.current_value,
             unrealized_pnl=position.unrealized_pnl,
-            percentage_return=((position.current_value / (position.shares * position.avg_price * 100)) - 1) * 100
-            if position.shares > 0 else 0,
+            percentage_return=(
+                (
+                    (
+                        position.current_value
+                        / (position.shares * position.avg_price * 100)
+                    )
+                    - 1
+                )
+                * 100
+                if position.shares > 0
+                else 0
+            ),
         )
         for position in positions
     ]
@@ -549,14 +587,14 @@ async def get_market_stats(
     db: AsyncSession = Depends(get_database),
 ):
     """Get market statistics."""
-    
+
     # Get market
     result = await db.execute(select(Market).where(Market.id == market_id))
     market = result.scalar_one_or_none()
-    
+
     if not market:
         raise ResourceNotFoundError("Market", str(market_id))
-    
+
     # Get position statistics
     stats_result = await db.execute(
         select(
@@ -565,9 +603,9 @@ async def get_market_stats(
             func.sum(MarketPosition.current_value).label("total_value"),
         ).where(MarketPosition.market_id == market_id)
     )
-    
+
     stats = stats_result.first()
-    
+
     return MarketStats(
         market_id=str(market_id),
         total_volume=stats.total_value or 0,
@@ -588,28 +626,28 @@ async def resolve_market(
     db: AsyncSession = Depends(get_database),
 ):
     """Resolve a prediction market (admin only)."""
-    
+
     logger.info(
         "Resolving market",
         admin_user_id=str(current_user.id),
         market_id=str(market_id),
     )
-    
+
     result = await db.execute(select(Market).where(Market.id == market_id))
     market = result.scalar_one_or_none()
-    
+
     if not market:
         raise ResourceNotFoundError("Market", str(market_id))
-    
+
     if market.status == "resolved":
         raise MarketError("Market is already resolved", str(market_id))
-    
+
     resolution_value = resolution_data.get("outcome")
     outcomes = market.metadata.get("outcomes", ["Yes", "No"])
-    
+
     if resolution_value not in outcomes:
         raise ValidationError(f"Invalid resolution outcome: {resolution_value}")
-    
+
     # Update market status
     await db.execute(
         update(Market)
@@ -620,15 +658,15 @@ async def resolve_market(
             resolution_value=resolution_value,
         )
     )
-    
+
     await db.commit()
-    
+
     logger.info(
         "Market resolved",
         market_id=str(market_id),
         resolution_value=resolution_value,
     )
-    
+
     return {
         "status": "resolved",
         "resolution_value": resolution_value,

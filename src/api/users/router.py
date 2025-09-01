@@ -1,17 +1,16 @@
 """User management routes with RBAC security."""
 
-from typing import List, Optional
 import uuid
+from typing import List, Optional
 
 import structlog
-from fastapi import APIRouter, Depends, Request, Query, Path
-from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Path, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import select, update
-from sqlalchemy.orm import selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import get_database, User
-from ..exceptions import ResourceNotFoundError, AuthorizationError, ValidationError
+from ..database import User, get_database
+from ..exceptions import ResourceNotFoundError, ValidationError
 from .dependencies import get_current_user, require_permissions
 
 logger = structlog.get_logger(__name__)
@@ -21,6 +20,7 @@ router = APIRouter()
 # Response Models
 class UserProfile(BaseModel):
     """User profile response."""
+
     id: str
     email: str
     username: Optional[str]
@@ -37,6 +37,7 @@ class UserProfile(BaseModel):
 
 class UserUpdate(BaseModel):
     """User profile update request."""
+
     username: Optional[str] = Field(None, min_length=3, max_length=50)
     full_name: Optional[str] = Field(None, max_length=255)
     bio: Optional[str] = Field(None, max_length=1000)
@@ -45,6 +46,7 @@ class UserUpdate(BaseModel):
 
 class UserList(BaseModel):
     """User list response."""
+
     users: List[UserProfile]
     total: int
     page: int
@@ -74,7 +76,7 @@ async def get_current_user_profile(
     current_user: User = Depends(get_current_user),
 ) -> UserProfile:
     """Get current user's profile."""
-    
+
     logger.info("Getting current user profile", user_id=str(current_user.id))
     return user_to_profile(current_user)
 
@@ -86,34 +88,31 @@ async def update_current_user_profile(
     db: AsyncSession = Depends(get_database),
 ) -> UserProfile:
     """Update current user's profile."""
-    
+
     logger.info("Updating user profile", user_id=str(current_user.id))
-    
+
     # Check username uniqueness if being updated
     if profile_update.username and profile_update.username != current_user.username:
         existing_user = await db.execute(
             select(User).where(
-                User.username == profile_update.username,
-                User.id != current_user.id
+                User.username == profile_update.username, User.id != current_user.id
             )
         )
         if existing_user.scalar_one_or_none():
             raise ValidationError("Username is already taken", "username")
-    
+
     # Update fields
     update_data = profile_update.model_dump(exclude_unset=True)
-    
+
     await db.execute(
-        update(User)
-        .where(User.id == current_user.id)
-        .values(**update_data)
+        update(User).where(User.id == current_user.id).values(**update_data)
     )
-    
+
     await db.commit()
-    
+
     # Refresh user data
     await db.refresh(current_user)
-    
+
     logger.info("User profile updated", user_id=str(current_user.id))
     return user_to_profile(current_user)
 
@@ -127,7 +126,7 @@ async def list_users(
     db: AsyncSession = Depends(get_database),
 ) -> UserList:
     """List users with pagination and search (admin only)."""
-    
+
     logger.info(
         "Listing users",
         admin_user_id=str(current_user.id),
@@ -135,38 +134,38 @@ async def list_users(
         per_page=per_page,
         search=search,
     )
-    
+
     # Build query
     query = select(User)
-    
+
     if search:
         search_term = f"%{search}%"
         query = query.where(
-            User.email.ilike(search_term) |
-            User.full_name.ilike(search_term) |
-            User.username.ilike(search_term)
+            User.email.ilike(search_term)
+            | User.full_name.ilike(search_term)
+            | User.username.ilike(search_term)
         )
-    
+
     # Get total count
     count_query = select(User.id)
     if search:
         search_term = f"%{search}%"
         count_query = count_query.where(
-            User.email.ilike(search_term) |
-            User.full_name.ilike(search_term) |
-            User.username.ilike(search_term)
+            User.email.ilike(search_term)
+            | User.full_name.ilike(search_term)
+            | User.username.ilike(search_term)
         )
-    
+
     total_result = await db.execute(count_query)
     total = len(total_result.all())
-    
+
     # Get paginated results
     offset = (page - 1) * per_page
     query = query.offset(offset).limit(per_page).order_by(User.created_at.desc())
-    
+
     result = await db.execute(query)
     users = result.scalars().all()
-    
+
     return UserList(
         users=[user_to_profile(user) for user in users],
         total=total,
@@ -182,15 +181,19 @@ async def get_user_by_id(
     db: AsyncSession = Depends(get_database),
 ) -> UserProfile:
     """Get user by ID (admin only)."""
-    
-    logger.info("Getting user by ID", admin_user_id=str(current_user.id), target_user_id=str(user_id))
-    
+
+    logger.info(
+        "Getting user by ID",
+        admin_user_id=str(current_user.id),
+        target_user_id=str(user_id),
+    )
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-    
+
     if not user:
         raise ResourceNotFoundError("User", str(user_id))
-    
+
     return user_to_profile(user)
 
 
@@ -201,33 +204,29 @@ async def deactivate_user(
     db: AsyncSession = Depends(get_database),
 ):
     """Deactivate user (admin only)."""
-    
+
     logger.info(
         "Deactivating user",
         admin_user_id=str(current_user.id),
         target_user_id=str(user_id),
     )
-    
+
     # Prevent self-deactivation
     if user_id == current_user.id:
         raise ValidationError("Cannot deactivate your own account")
-    
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-    
+
     if not user:
         raise ResourceNotFoundError("User", str(user_id))
-    
-    await db.execute(
-        update(User)
-        .where(User.id == user_id)
-        .values(is_active=False)
-    )
-    
+
+    await db.execute(update(User).where(User.id == user_id).values(is_active=False))
+
     await db.commit()
-    
+
     logger.info("User deactivated", target_user_id=str(user_id))
-    
+
     return {"message": "User deactivated successfully"}
 
 
@@ -238,29 +237,25 @@ async def activate_user(
     db: AsyncSession = Depends(get_database),
 ):
     """Activate user (admin only)."""
-    
+
     logger.info(
         "Activating user",
         admin_user_id=str(current_user.id),
         target_user_id=str(user_id),
     )
-    
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-    
+
     if not user:
         raise ResourceNotFoundError("User", str(user_id))
-    
-    await db.execute(
-        update(User)
-        .where(User.id == user_id)
-        .values(is_active=True)
-    )
-    
+
+    await db.execute(update(User).where(User.id == user_id).values(is_active=True))
+
     await db.commit()
-    
+
     logger.info("User activated", target_user_id=str(user_id))
-    
+
     return {"message": "User activated successfully"}
 
 

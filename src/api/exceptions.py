@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 class FundCastException(Exception):
     """Base exception class for FundCast-specific errors."""
-    
+
     def __init__(
         self,
         message: str,
@@ -22,8 +22,12 @@ class FundCastException(Exception):
 
 class AuthenticationError(FundCastException):
     """Authentication-related errors."""
-    
-    def __init__(self, message: str = "Authentication failed", details: Optional[Dict[str, Any]] = None):
+
+    def __init__(
+        self,
+        message: str = "Authentication failed",
+        details: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(
             message=message,
             error_code="authentication_failed",
@@ -34,8 +38,12 @@ class AuthenticationError(FundCastException):
 
 class AuthorizationError(FundCastException):
     """Authorization-related errors."""
-    
-    def __init__(self, message: str = "Insufficient permissions", details: Optional[Dict[str, Any]] = None):
+
+    def __init__(
+        self,
+        message: str = "Insufficient permissions",
+        details: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(
             message=message,
             error_code="authorization_failed",
@@ -46,12 +54,17 @@ class AuthorizationError(FundCastException):
 
 class ValidationError(FundCastException):
     """Input validation errors."""
-    
-    def __init__(self, message: str, field: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+
+    def __init__(
+        self,
+        message: str,
+        field: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
         details = details or {}
         if field:
             details["field"] = field
-        
+
         super().__init__(
             message=message,
             error_code="validation_failed",
@@ -62,23 +75,26 @@ class ValidationError(FundCastException):
 
 class ResourceNotFoundError(FundCastException):
     """Resource not found errors."""
-    
+
     def __init__(self, resource: str, identifier: Any = None):
         message = f"{resource} not found"
         if identifier:
             message += f": {identifier}"
-        
+
         super().__init__(
             message=message,
             error_code="resource_not_found",
             status_code=404,
-            details={"resource": resource, "identifier": str(identifier) if identifier else None},
+            details={
+                "resource": resource,
+                "identifier": str(identifier) if identifier else None,
+            },
         )
 
 
 class ConflictError(FundCastException):
     """Resource conflict errors."""
-    
+
     def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
         super().__init__(
             message=message,
@@ -90,12 +106,14 @@ class ConflictError(FundCastException):
 
 class RateLimitError(FundCastException):
     """Rate limiting errors."""
-    
-    def __init__(self, message: str = "Rate limit exceeded", retry_after: Optional[int] = None):
+
+    def __init__(
+        self, message: str = "Rate limit exceeded", retry_after: Optional[int] = None
+    ):
         details = {}
         if retry_after:
             details["retry_after"] = retry_after
-            
+
         super().__init__(
             message=message,
             error_code="rate_limit_exceeded",
@@ -106,12 +124,17 @@ class RateLimitError(FundCastException):
 
 class ComplianceError(FundCastException):
     """Compliance-related errors."""
-    
-    def __init__(self, message: str, regulation: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+
+    def __init__(
+        self,
+        message: str,
+        regulation: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
         details = details or {}
         if regulation:
             details["regulation"] = regulation
-            
+
         super().__init__(
             message=message,
             error_code="compliance_violation",
@@ -122,12 +145,17 @@ class ComplianceError(FundCastException):
 
 class MarketError(FundCastException):
     """Market operation errors."""
-    
-    def __init__(self, message: str, market_id: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+
+    def __init__(
+        self,
+        message: str,
+        market_id: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
         details = details or {}
         if market_id:
             details["market_id"] = market_id
-            
+
         super().__init__(
             message=message,
             error_code="market_operation_failed",
@@ -138,12 +166,17 @@ class MarketError(FundCastException):
 
 class InferenceError(FundCastException):
     """AI inference errors."""
-    
-    def __init__(self, message: str, model: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+
+    def __init__(
+        self,
+        message: str,
+        model: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
         details = details or {}
         if model:
             details["model"] = model
-            
+
         super().__init__(
             message=message,
             error_code="inference_failed",
@@ -154,11 +187,13 @@ class InferenceError(FundCastException):
 
 class ExternalServiceError(FundCastException):
     """External service integration errors."""
-    
-    def __init__(self, service: str, message: str, details: Optional[Dict[str, Any]] = None):
+
+    def __init__(
+        self, service: str, message: str, details: Optional[Dict[str, Any]] = None
+    ):
         details = details or {}
         details["service"] = service
-        
+
         super().__init__(
             message=f"{service}: {message}",
             error_code="external_service_error",
