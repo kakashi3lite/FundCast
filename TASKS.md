@@ -1,65 +1,77 @@
 # FundCast Implementation Tasks
 
-## Phase 1: Foundation (Week 1-2)
+> Status reconciled 2026-08-06 against the verified codebase (see
+> `docs/PLATFORM_OVERVIEW.md`). Checkmarks reflect **implemented + importable**
+> work, not aspirational claims.
+
+## ✅ Completed
+
+### Foundation & Backend
 - [x] Project structure and documentation
-- [ ] FastAPI backend with security middleware
-- [ ] PostgreSQL + pgvector setup
-- [ ] Basic authentication and RBAC
-- [ ] Docker multi-stage build
-- [ ] CI/CD pipeline setup
+- [x] FastAPI backend with security middleware
+- [x] Authentication (JWT + refresh + blacklist) and RBAC
+- [x] PostgreSQL + pgvector models (SQLAlchemy 2.0 async)
+- [x] Rate limiting (Redis with in-memory fallback)
+- [x] Structured logging + OpenTelemetry instrumentation
+- [x] Custom exception hierarchy + RFC 7807-style handlers
 
-## Phase 2: Core Features (Week 3-4)
-- [ ] ONNX Runtime inference layer
-- [ ] User registration and KYB/KYC
-- [ ] Basic forecast market structure
-- [ ] Next.js frontend with routing
-- [ ] Real-time WebSocket connections
-- [ ] Basic security testing
+### Compliance (models + validation)
+- [x] Reg CF offering validation ($5M limits)
+- [x] Rule 506(c) accreditation verification models
+- [x] KYC/KYB request models + provider enum
+- [ ] (real provider SDK calls — pending)
 
-## Phase 3: Compliance (Week 5-6)
-- [ ] Reg CF issuer workflows
-- [ ] Rule 506(c) accredited verification
-- [ ] Stripe Identity/Persona integration
-- [ ] Document management and data rooms
-- [ ] Audit logging and compliance reporting
-- [ ] Security penetration testing
+### Subscriptions
+- [x] Tier system (Oracle → Kingmaker) + Purple featuring
+- [x] LemonSqueezy client (async) + webhook verification
+- [x] Referral / analytics / admin metrics endpoints
 
-## Phase 4: Advanced Markets (Week 7-8)
-- [ ] Order book implementation
-- [ ] AMM (Automated Market Maker) engine
-- [ ] Bundle market functionality
-- [ ] Kelly criterion optimization
-- [ ] No-vig probability calculations
-- [ ] Cash-out mechanisms
+### Security Framework
+- [x] AI threat detector + defense middleware
+- [x] Behavioral authenticity analyzer
+- [x] Adversarial input neutralizer
+- [x] Intelligent incident response
+- [x] Continuous red team simulator
+- [x] Prediction-market integrity framework
 
-## Phase 5: AI Integration (Week 9-10)
-- [ ] Market prediction models
-- [ ] Risk assessment algorithms
-- [ ] Sentiment analysis pipeline
-- [ ] Recommendation engine
-- [ ] Performance optimization
-- [ ] Load testing and benchmarks
+### Frontend
+- [x] Vite + React + TS + Tailwind + Framer Motion build
+- [x] Scene System (SST) + provider + inspector
+- [x] Engagement libs (streaks, social feed, VIP, referral/leaderboard)
+- [x] Home / Pricing pages + featured founders + purple pricing
+- [x] Production build passing
 
-## Phase 6: Observability (Week 11-12)
-- [ ] OpenTelemetry GenAI tracing
-- [ ] Prometheus metrics collection
-- [ ] Grafana dashboards
-- [ ] Error monitoring and alerting
-- [ ] Performance monitoring
-- [ ] SBOM generation and security scanning
+### SRE
+- [x] Circuit breaker (rolling window)
+- [x] SLO monitoring + error budgets
+- [x] System/application metrics + slow-query detection
+- [x] Priority task queue + `@task` decorator
 
-## Continuous Tasks
-- [ ] Unit test coverage >=95%
-- [ ] Integration test suite
-- [ ] Security vulnerability scanning
-- [ ] Documentation updates
-- [ ] Performance optimization
-- [ ] Compliance validation
+## 🟡 In Progress
 
-## Success Criteria
-- [ ] All tests passing with >=95% coverage
-- [ ] Container startup time ≤1.5s
-- [ ] Image size ≤300MB
-- [ ] API response time <200ms p95
+- [ ] **Order book engine** — matching, depth, cancellations
+- [ ] **AMM settlement engine**
+- [ ] **Market resolution + settlement jobs**
+- [ ] **Test repair** — integration suite uses `httpx.AsyncClient(app=…)`;
+      migrate to `ASGITransport`
+- [ ] **Alembic migrations** — replace `create_all` at startup
+- [ ] **Real KYC/KYB provider calls** (Stripe/Persona/Jumio)
+- [ ] **Reg A tier validation** (Tier 1 / Tier 2)
+- [ ] **IPQS middleware wiring** (config present)
+- [ ] **Polygon USDC flows** (config present; wire checkout + settle)
+
+## ⏳ Roadmap
+
+- [ ] ONNX runtime inference layer + model versioning
+- [ ] CI/CD pipeline (lint, test, build, SBOM, container scan)
+- [ ] Prometheus/Grafana dashboards
+- [ ] Kubernetes manifests / blue-green deploys
+- [ ] PWA + charts for market detail
+- [ ] Load testing + benchmark targets (<200ms p95, ≤1.5s boot, ≤300MB image)
+
+## Success Criteria (targets — measured only when suite runs green)
+- [ ] All tests passing (coverage reported from `make test`)
+- [ ] Container startup ≤ 1.5s / image ≤ 300MB
+- [ ] API response time < 200ms p95
 - [ ] Zero critical security vulnerabilities
 - [ ] Full regulatory compliance documentation

@@ -1,11 +1,24 @@
 # 🚀 FundCast Market Domination: Execution Strategy
-*From gambling psychology to global platform - the complete implementation roadmap*
+*From engagement psychology to global platform - the complete implementation roadmap*
+
+> ⚖️ **Compliance first.** This strategy is executed within the operating
+> constraints documented in [`MARKET_DOMINATION_GAMEPLAN.md`](./MARKET_DOMINATION_GAMEPLAN.md)
+> (Compliance & Jurisdiction section): Polygon USDC payments, IPQS
+> MA-only geo-enforcement, MGL c.10 §29–36 / c.271 §5A / 205 CMR review, and
+> responsible-play guardrails (self-exclusion, deposit limits, cool-downs).
+> Engagement mechanics are retention tooling — never addiction architecture.
 
 ## 🎯 Executive Summary
 
-We've built the complete technical foundation for a gambling psychology-optimized prediction platform. This document outlines the exact execution strategy to achieve market dominance within 24 months, targeting $10B+ platform valuation.
+We've built the complete technical foundation for a psychologically-optimized
+prediction platform (Scene System + engagement components now implemented and
+buildable). This document outlines the execution strategy to reach platform
+scale within 24 months, targeting a $10B+ platform valuation.
 
-**The Unfair Advantage:** We're combining proven casino addiction mechanics with SaaS founder psychology, creating an unbreakable engagement loop that competitors can't replicate.
+**The Unfair Advantage:** Combining proven engagement psychology (streaks,
+status, social proof) with SaaS founder insight creates a defensible retention
+loop — implemented inside a fully compliant, jurisdiction-limited, responsible-play
+framework.
 
 ---
 
@@ -61,10 +74,11 @@ const REVENUE_OPTIMIZATION = {
     kingmaker: { price: "$2999/month", maxPosition: "leveraged", features: "exclusive" }
   },
   
-  addictionEscalation: {
-    playMoneyHook: "6 weeks average before real money",
-    stakesIncrease: "20% monthly average position size growth",
-    recoveryBetting: "85% of users attempt loss recovery within 24hrs"
+  responsiblePlay: {
+    playMoneyOnboarding: "guided play-money first sessions before real money",
+    stakesGuardrails: "user-set caps; position limits scale with verified activity",
+    coolDown: "strategy-review panel + cool-down after sustained losing sessions",
+    selfExclusion: "30/90/180-day or permanent self-exclusion enforced at API layer"
   }
 }
 ```
@@ -77,11 +91,16 @@ const REVENUE_OPTIMIZATION = {
 
 #### Key Metrics to Track
 ```bash
-# Addiction Metrics (Primary KPIs)
+# Engagement Metrics (Primary KPIs)
 Daily Active Users (DAU): Target 15,000 by Month 9
 Session Duration: Target 45+ minutes average
 Return Rate: Target 92% within 7 days
 Streak Engagement: Target 65% maintaining 3+ day streaks
+
+# Responsible-Play Metrics (tracked alongside engagement)
+Self-Exclusion Activation: monitored, reported
+Cool-Down Activations: monitored for UX fatigue
+Deposit-Limit Adoption: Target 60%+ of active users set caps
 
 # Revenue Metrics
 Monthly Recurring Revenue (MRR): Target $8M by Month 9  
@@ -99,6 +118,9 @@ Prophet Program: Target 40% of users become active referrers
 *International rollout and adjacent market penetration*
 
 #### Geographic Expansion Strategy
+> ⚖️ **Constraint:** Launch is Massachusetts-only. The roadmap below is
+> conditional on obtaining a written legal opinion for each new jurisdiction
+> and updating `ALLOWED_JURISDICTIONS` + IPQS enforcement accordingly.
 - **London Launch (Month 10):** Hedge fund + PE prediction markets
 - **Singapore Launch (Month 12):** Crypto/DeFi startup ecosystem
 - **Toronto Launch (Month 14):** AI/ML research and startup hub
@@ -152,63 +174,53 @@ const EXPANSION_PRODUCTS = {
 
 ## 🧠 Psychological Implementation Details
 
-### The Addiction Architecture
+### The Engagement Architecture
 
-#### 1. Variable Reward Schedule Optimization
+#### 1. Feedback Schedule Tuning
 ```typescript
-const DOPAMINE_OPTIMIZATION = {
+// Engagement feedback tuning — governed by responsible-play guardrails.
+// Outcome distributions are NEVER artificially manipulated.
+const ENGAGEMENT_TUNING = {
   winStreaks: {
-    // Let them win early to build confidence  
-    newUserWinRate: "75% first week",
-    // Then gradually reduce to house edge
-    matureUserWinRate: "45% (house edge 5%)",
-    // Strategic streak breaks at psychological peaks
-    streakBreakTiming: "After 3-7 consecutive wins"
+    newUserOnboarding: "play-money confidence builder (no real funds)",
+    steadyState: "natural outcome distribution",
+    streakCelebration: "Congratulatory moments at 3-7 consecutive wins"
   },
   
-  nearMissFrequency: {
-    // Optimal addiction balance
-    frequency: "30% of losing bets within 5% of winning",
-    // Escalate near-miss intensity for bigger losses
-    escalation: "Closer misses for larger bet amounts",
-    // Recovery betting prompts after near-misses
-    recoveryPrompt: "80% show 'double down' option within 60s"
+  nearMissPresentation: {
+    frequency: "natural outcome distribution only",
+    presentation: "informational only — never a betting prompt",
+    followUp: "strategy review panel + optional cool-down"
   },
   
   socialProofTiming: {
-    // Show others winning while user is losing
-    lossSpiral: "Display 3+ recent wins during user loss streaks",
-    // Create FOMO during user hesitation  
-    hesitation: "Show 'others betting now' after 30s inactivity",
-    // Amplify competitive pressure
-    leaderboard: "Update user rank immediately after losses"
+    communityWins: "Show community wins (opt-out available)",
+    hesitation: "Show market activity after 30s inactivity",
+    leaderboard: "Update user rank after resolutions"
   }
 }
 ```
 
-#### 2. Escalation Mechanics
+#### 2. Stakes & Limits
 ```typescript  
-const STAKES_ESCALATION = {
-  monthlyProgression: {
-    // Gradual bet size increases
-    month1: "$100 average bet size",
-    month3: "$300 average bet size", 
-    month6: "$750 average bet size",
-    month12: "$1,500+ average bet size"
+const STAKES_AND_LIMITS = {
+  progression: {
+    month1: "$100 max position (user-set cap respected)",
+    month3: "$300 max position",
+    month6: "$750 max position",
+    month12: "$1,500+ max position (verified activity only)"
   },
   
-  vipTierPressure: {
-    // Status symbol addiction
-    tierBenefits: "Exponentially better at each level",
+  vipTierStatus: {
+    tierBenefits: "Clear, honest benefit ladder",
     progressVisibility: "Always show progress to next tier",
-    limitedTime: "Tier upgrade bonuses expire to create urgency"
+    expiryPrompts: "Tier bonuses have transparent expiry dates"
   },
   
-  recoveryBetting: {
-    // Double-down psychology
-    lossThreshold: "$500+ triggers recovery suggestions",
-    suggestions: "2x loss amount to 'break even with one win'",
-    urgency: "30-second countdown timers on recovery offers"
+  lossHandling: {
+    lossThreshold: "$500+ triggers strategy-review panel",
+    reviewPrompt: "Position-sizing review + cool-down suggestion",
+    noUrgencyTimers: "no countdown pressure on review surfaces"
   }
 }
 ```
@@ -248,17 +260,19 @@ const VIRAL_MECHANICS = {
 
 ## ⚖️ Legal & Regulatory Strategy
 
-### Staying Legal While Maximizing Addiction
+### Staying Compliant While Maximizing Engagement
 
 #### Prediction Markets vs Gambling Classification
 - **Frame as "information markets" not gambling**
 - **Focus on business intelligence and market research value**
 - **Emphasize skill vs chance in founder knowledge**
 - **Partner with academic institutions for legitimacy**
+- **Enforce MA-only jurisdiction via IPQS before any market access**
 
-#### Regulatory Arbitrage Opportunities
-- **Launch in crypto-friendly jurisdictions first (Singapore, Switzerland)**  
-- **Establish operations in states with favorable prediction market laws**
+#### Regulatory Approach
+- **Launch exclusively in Massachusetts** (`ALLOWED_JURISDICTIONS=["MA"]`), per MGL c.10 §29–36, c.271 §5A, and 205 CMR review
+- **Any new jurisdiction requires a written legal opinion before launch**
+- **No "regulatory arbitrage"** — jurisdictions are added only through compliant channels
 - **Build relationships with regulators before competitors**
 - **Hire former CFTC/SEC officials as advisors**
 
@@ -385,8 +399,8 @@ Network Effects:
 - **Contingency:** International expansion and product diversification
 - **Insurance:** Multiple revenue streams beyond just founders
 
-#### 4. **Gambling Addiction Backlash**
-- **Mitigation:** Responsible gambling features and limits
+#### 4. **Responsible-Play Backlash**
+- **Mitigation:** Self-exclusion, deposit limits, cool-downs, honest framing
 - **Contingency:** Pivot messaging to "market research" and "business intelligence"
 - **Insurance:** Strong PR team and community outreach programs
 
@@ -395,20 +409,20 @@ Network Effects:
 ## 🎯 The Bottom Line
 
 **This is our window.** The combination of:
-- Legal prediction markets
+- Compliant prediction markets (MA-only, IPQS-enforced)
 - SaaS founder wealth concentration  
 - Social media viral mechanics
-- Advanced gambling psychology understanding
-- Remote-work global reach
+- Advanced engagement psychology (with responsible-play guardrails)
+- Remote-work reach
 
 Creates a once-in-a-decade opportunity for winner-take-all market domination.
 
 **Execute with precision. Scale with psychology. Dominate through network effects.**
 
-The complete technical foundation is built. The psychology is optimized. The viral mechanics are loaded.
+The complete technical foundation is built. The engagement system is implemented. The viral mechanics are loaded.
 
-**Time to roll the dice. 🎲**
+**Time to execute. ⚡**
 
 ---
 
-*"The best time to plant a tree was 20 years ago. The second best time is now. The best time to build an addictive gambling platform for rich entrepreneurs is right now."*
+*"The best time to plant a tree was 20 years ago. The second best time is now. The best time to build a compliant, engagement-first prediction platform is right now."*

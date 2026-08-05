@@ -510,12 +510,20 @@ class TaskManager:
 # Global task manager
 _task_manager: Optional[TaskManager] = None
 
+# Functions decorated with @task are registered lazily when the task manager is
+# first created (inside a running event loop), instead of at import time.
+_pending_registrations: List[tuple] = []
+
 
 async def get_task_manager() -> TaskManager:
     """Get or create task manager instance."""
     global _task_manager
     if _task_manager is None:
         _task_manager = TaskManager()
+        # Flush any functions decorated before the manager existed.
+        while _pending_registrations:
+            name, func = _pending_registrations.pop(0)
+            _task_manager.register_function(name, func)
     return _task_manager
 
 
@@ -528,8 +536,9 @@ def task(
     """Decorator to register functions as tasks."""
     def decorator(func: Callable) -> Callable:
         if auto_register:
-            # Register function when decorator is applied
-            asyncio.create_task(_register_function_async(func.__name__, func))
+            # Defer registration until the task manager exists (avoids
+            # requiring a running event loop at import time).
+            _pending_registrations.append((func.__name__, func))
         
         async def wrapper(*args, **kwargs):
             # Submit as task

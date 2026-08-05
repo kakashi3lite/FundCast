@@ -265,7 +265,7 @@ class FeaturingImpression(Base):
     session_id = Column(String(100))
     
     # Metadata
-    metadata = Column(JSON)  # Additional tracking data
+    metadata_json = Column("metadata", JSON)  # Additional tracking data
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)

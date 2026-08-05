@@ -16,6 +16,48 @@
 
 ---
 
+## ⚖️ Compliance & Jurisdiction (Operating Constraints — READ FIRST)
+
+**FundCast operates as a compliant prediction + social-funding platform, not an
+unlicensed casino.** Every engagement mechanic in this playbook must operate
+within the constraints below. Features that cannot satisfy these constraints are
+**not** shipped.
+
+### Payment rails — Polygon USDC
+- All crypto payments settle in **USDC on Polygon PoS** (Circle contract
+  `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`), via `ethers.js` v6.
+- Gas is sponsored (Biconomy/Pimlico) for a frictionless user experience.
+- Card payments continue via LemonSqueezy. Crypto and card flows are separate
+  and independently reconcilable (see `docs/PLATFORM_OVERVIEW.md`).
+
+### Jurisdiction — Massachusetts only (for prediction/tournament play)
+- **IPQS** (`IPQS_API_KEY`) performs real-time IP reputation + proxy/VPN
+  detection + geolocation on every request.
+- Non-`MA` traffic (per `ALLOWED_JURISDICTIONS`) is blocked at the API layer.
+- Billing-address verification is the fallback check for spoofed IPs.
+- Results are cached for 5 minutes to stay within IPQS rate limits.
+
+### Massachusetts legal framework
+- **MGL c.10 §29–36** — state gaming commission / sweepstakes oversight.
+- **MGL c.271 §5A** — gaming law; prohibits unlicensed gaming devices/wagers.
+- **205 CMR** — commission regulations for authorized gaming.
+- Classification of prediction markets on SaaS outcomes is *novel* territory —
+  engagement mechanics (streaks, leaderboards, "near-miss" presentation) are
+  subject to legal review before launch.
+- **Required action**: engage a MA gaming attorney before going live.
+
+### Responsible-play guardrails (non-negotiable)
+- **Self-exclusion**: any user can exclude themselves from prediction markets for
+  30/90/180 days or permanently; exclusion is enforced at the API layer.
+- **Deposit & loss limits**: per-user daily/weekly caps, configurable.
+- **Cool-down prompts**: after sustained losing sessions, require a pause.
+- **No "loss recovery" up-sells**: the playbook's recovery mechanics are reframed
+  as *strategy review* surfaces, never "double down to break even."
+- **Honest framing**: engagement components are documented as *retention /
+  gamification*, not "addiction architecture."
+
+---
+
 ## 🎯 Phase 1: The Hook (Months 1-6)
 *Getting the first 1,000 addicted users*
 
@@ -138,24 +180,25 @@ const SUBSCRIPTION_TIERS = {
 
 #### Variable Reward Schedules
 ```typescript
-const DOPAMINE_OPTIMIZATION = {
-  // Biggest psychological hooks from casino design
+// Engagement feedback tuning — subject to responsible-play guardrails.
+// "Near-miss" presentation is informational, not a betting prompt.
+const ENGAGEMENT_TUNING = {
   nearMiss: {
-    frequency: "30% of losing bets",
+    frequency: "natural outcome distribution only", // never artificially tuned
     trigger: "Within 5% of winning",
-    message: "So close! The next one could be it..."
+    message: "So close! Review your thesis and try again when ready"
   },
   
   streakInterruption: {
-    pattern: "Break winning streaks at psychological peaks", 
+    pattern: "Break celebration streaks at set milestones",
     timing: "After 3-7 wins in a row",
-    hook: "Revenge betting to get streak back"
+    hook: "Invite to review next market (no recovery betting)"
   },
   
   socialProof: {
-    timing: "Show others winning while user is losing",
+    timing: "Show community wins (opt-out available)",
     message: "'Mike just won $25K on the same market!'",
-    cta: "Double down to catch up?"
+    cta: "Explore the market"
   },
 
   artificialScarcity: {
@@ -166,13 +209,18 @@ const DOPAMINE_OPTIMIZATION = {
 }
 ```
 
-#### The Addiction Spiral Architecture
-1. **Free Wins** - Let them win big early with house money
-2. **Graduated Stakes** - Slowly increase minimum bets  
-3. **Loss Recovery** - "Bet double to break even faster"
-4. **Social Pressure** - Friends' wins create FOMO
-5. **Sunk Cost** - "You're so close to VIP status..."
-6. **Information Advantage** - "Premium users see this data first"
+#### The Engagement Loop Architecture
+*(Reframed per the Compliance & Jurisdiction constraints above — never
+"addiction", always measured against responsible-play guardrails.)*
+
+1. **Skill Onboarding** - Guided first-timer experience with play-money markets
+2. **Graduated Stakes** - Position limits scale with verified activity, never
+   unbounded, and respect user-set deposit caps
+3. **Strategy Review** - Losses surface a review panel + cool-down, never a
+   "double down" up-sell
+4. **Social Proof** - Celebratory feed of community wins (opt-out available)
+5. **Progress Signals** - "You're close to the next tier" uses real metrics only
+6. **Information Advantage** - Premium data access advertised transparently
 
 ### 🔥 Advanced Market Psychology
 

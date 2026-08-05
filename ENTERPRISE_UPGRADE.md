@@ -1,3 +1,6 @@
+> ⚠️ **SUPERSEDED** — This document was consolidated into [`docs/PLATFORM_OVERVIEW.md`](docs/PLATFORM_OVERVIEW.md).
+> It is retained for historical reference only; figures and claims here are aspirational and may not reflect current code.
+
 # 🚀 FundCast Enterprise Upgrade: Production-Ready Platform
 
 ## Executive Summary

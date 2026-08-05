@@ -60,13 +60,13 @@ interface PricingData {
 
 interface PurpleTierPricingProps {
   currentTier?: string
-  onSelectTier: (tierSlug: string, billingCycle: 'monthly' | 'annual') => void
+  onSelectTier?: (tierSlug: string, billingCycle: 'monthly' | 'annual') => void
   className?: string
 }
 
 export const PurpleTierPricing: React.FC<PurpleTierPricingProps> = ({
   currentTier,
-  onSelectTier,
+  onSelectTier = () => undefined,
   className
 }) => {
   const { trackEvent } = useSceneSystem()
@@ -188,7 +188,6 @@ export const PurpleTierPricing: React.FC<PurpleTierPricingProps> = ({
               isHovered={hoveredTier === tier.slug}
               onHover={setHoveredTier}
               onSelect={() => handleTierSelect(tier)}
-              pricingData={pricingData}
             />
           ))}
         </StaggerList>
@@ -222,7 +221,6 @@ interface PricingCardProps {
   isHovered: boolean
   onHover: (tierSlug: string | null) => void
   onSelect: () => void
-  pricingData: PricingData
 }
 
 const PricingCard: React.FC<PricingCardProps> = ({
@@ -234,14 +232,7 @@ const PricingCard: React.FC<PricingCardProps> = ({
   isHovered,
   onHover,
   onSelect,
-  pricingData
 }) => {
-  const price = billingCycle === 'annual' && tier.annual_price ? 
-    tier.annual_price : tier.monthly_price
-  
-  const displayPrice = billingCycle === 'annual' && tier.annual_price_display ?
-    tier.annual_price_display : tier.monthly_price_display
-  
   const effectiveMonthlyPrice = billingCycle === 'annual' && tier.annual_savings ?
     tier.annual_savings.effective_monthly_price : tier.monthly_price
   

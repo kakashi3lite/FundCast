@@ -32,9 +32,9 @@ class MarketCreate(BaseModel):
     """Create prediction market request."""
     title: str = Field(..., min_length=10, max_length=255)
     description: str = Field(..., min_length=50, max_length=2000)
-    category: str = Field(..., regex="^(business|finance|crypto|sports|politics|technology)$")
-    market_type: str = Field(default="binary", regex="^(binary|categorical|scalar)$")
-    engine_type: str = Field(default="orderbook", regex="^(orderbook|amm)$")
+    category: str = Field(..., pattern="^(business|finance|crypto|sports|politics|technology)$")
+    market_type: str = Field(default="binary", pattern="^(binary|categorical|scalar)$")
+    engine_type: str = Field(default="orderbook", pattern="^(orderbook|amm)$")
     resolution_source: Optional[str] = Field(None, max_length=500)
     resolution_date: Optional[datetime] = None
     outcomes: List[str] = Field(default=["Yes", "No"])
@@ -63,14 +63,14 @@ class MarketUpdate(BaseModel):
     description: Optional[str] = Field(None, min_length=50, max_length=2000)
     resolution_source: Optional[str] = Field(None, max_length=500)
     resolution_date: Optional[datetime] = None
-    status: Optional[str] = Field(None, regex="^(active|paused|resolved|cancelled)$")
+    status: Optional[str] = Field(None, pattern="^(active|paused|resolved|cancelled)$")
 
 
 class MarketOrder(BaseModel):
     """Place market order request."""
     outcome: str = Field(..., min_length=1, max_length=100)
-    side: str = Field(..., regex="^(buy|sell)$")
-    order_type: str = Field(default="market", regex="^(market|limit)$")
+    side: str = Field(..., pattern="^(buy|sell)$")
+    order_type: str = Field(default="market", pattern="^(market|limit)$")
     quantity: int = Field(..., gt=0, le=1000000)  # Max 1M shares
     price: Optional[float] = Field(None, ge=0.01, le=0.99)  # Probability between 1% and 99%
     

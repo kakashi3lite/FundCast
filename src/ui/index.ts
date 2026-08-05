@@ -14,8 +14,8 @@ export { SceneProvider } from './lib/scene-provider';
 export { SceneSystem } from './lib/scene-system';
 
 // Examples and Demos
-export { SceneSystemExample } from './examples/scene-system-example';
-export { MarketDominationDemo } from './examples/market-domination-demo';
+export { default as SceneSystemExample } from './examples/scene-system-example';
+export { default as MarketDominationDemo } from './examples/market-domination-demo';
 
 // Advanced Libraries
 export * from './lib/gambling-psychology';

@@ -5,11 +5,11 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
-from src.api.auth import get_current_user, get_admin_user
-from src.api.database import get_db
+from src.api.database import get_database, User
+from src.api.users.dependencies import get_current_user, get_admin_user
 from .service import SubscriptionService
 from .lemonsqueezy import LemonSqueezyClient
 
@@ -53,7 +53,7 @@ class FeaturingContentRequest(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════════
 
 @router.get("/tiers", response_model=List[Dict])
-async def get_subscription_tiers(db: Session = Depends(get_db)):
+async def get_subscription_tiers(db: AsyncSession = Depends(get_database)):
     """Get all available subscription tiers with pricing"""
     
     service = SubscriptionService(db)
@@ -63,7 +63,7 @@ async def get_subscription_tiers(db: Session = Depends(get_db)):
 
 
 @router.get("/tiers/comparison", response_model=Dict)
-async def get_tier_comparison(db: Session = Depends(get_db)):
+async def get_tier_comparison(db: AsyncSession = Depends(get_database)):
     """Get tier comparison data optimized for pricing page"""
     
     service = SubscriptionService(db)
@@ -96,13 +96,13 @@ async def get_tier_comparison(db: Session = Depends(get_db)):
 
 @router.get("/my-subscription", response_model=Dict)
 async def get_my_subscription(
-    current_user: Dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_database)
 ):
     """Get current user's subscription details"""
     
     service = SubscriptionService(db)
-    subscription = await service.get_user_subscription(current_user["id"])
+    subscription = await service.get_user_subscription(str(current_user.id))
     
     if not subscription:
         return {"subscription": None, "is_subscribed": False}
@@ -118,8 +118,8 @@ async def get_my_subscription(
 @router.post("/checkout", response_model=Dict)
 async def create_checkout_session(
     request: CheckoutRequest,
-    current_user: Dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_database)
 ):
     """Create checkout session for new subscription"""
     
@@ -127,9 +127,9 @@ async def create_checkout_session(
     
     try:
         checkout_data = await service.create_checkout_session(
-            user_id=current_user["id"],
-            user_email=current_user["email"],
-            user_name=current_user["full_name"],
+            user_id=str(current_user.id),
+            user_email=current_user.email,
+            user_name=current_user.full_name,
             tier_slug=request.tier_slug,
             billing_cycle=request.billing_cycle,
             trial_days=request.trial_days,
@@ -154,8 +154,8 @@ async def create_checkout_session(
 @router.post("/upgrade", response_model=Dict)
 async def upgrade_subscription(
     request: UpgradeRequest,
-    current_user: Dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_database)
 ):
     """Upgrade current subscription to higher tier"""
     
@@ -163,7 +163,7 @@ async def upgrade_subscription(
     
     try:
         result = await service.upgrade_subscription(
-            user_id=current_user["id"],
+            user_id=str(current_user.id),
             new_tier_slug=request.new_tier_slug,
             billing_cycle=request.billing_cycle
         )
@@ -185,8 +185,8 @@ async def upgrade_subscription(
 @router.post("/cancel", response_model=Dict)
 async def cancel_subscription(
     request: CancelRequest,
-    current_user: Dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_database)
 ):
     """Cancel current subscription"""
     
@@ -194,7 +194,7 @@ async def cancel_subscription(
     
     try:
         result = await service.cancel_subscription(
-            user_id=current_user["id"],
+            user_id=str(current_user.id),
             immediate=request.immediate,
             reason=request.reason
         )
@@ -209,15 +209,15 @@ async def cancel_subscription(
 
 @router.post("/reactivate", response_model=Dict)
 async def reactivate_subscription(
-    current_user: Dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_database)
 ):
     """Reactivate a canceled subscription"""
     
     service = SubscriptionService(db)
     
     try:
-        result = await service.reactivate_subscription(current_user["id"])
+        result = await service.reactivate_subscription(str(current_user.id))
         return result
     
     except ValueError as e:
@@ -229,8 +229,8 @@ async def reactivate_subscription(
 @router.post("/billing-cycle", response_model=Dict)
 async def update_billing_cycle(
     request: BillingCycleRequest,
-    current_user: Dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_database)
 ):
     """Update subscription billing cycle"""
     
@@ -238,7 +238,7 @@ async def update_billing_cycle(
     
     try:
         result = await service.update_billing_cycle(
-            user_id=current_user["id"],
+            user_id=str(current_user.id),
             new_billing_cycle=request.billing_cycle
         )
         
@@ -256,15 +256,15 @@ async def update_billing_cycle(
 
 @router.get("/purple-featuring/queue", response_model=Dict)
 async def get_featuring_queue(
-    current_user: Dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_database)
 ):
     """Get user's Purple featuring queue and schedule"""
     
     service = SubscriptionService(db)
     
     try:
-        queue_data = await service.get_purple_featuring_queue(current_user["id"])
+        queue_data = await service.get_purple_featuring_queue(str(current_user.id))
         return queue_data
     
     except Exception as e:
@@ -275,8 +275,8 @@ async def get_featuring_queue(
 async def update_featuring_content(
     featuring_id: str,
     request: FeaturingContentRequest,
-    current_user: Dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_database)
 ):
     """Update custom content for scheduled featuring"""
     
@@ -284,7 +284,7 @@ async def update_featuring_content(
     
     try:
         result = await service.update_featuring_content(
-            user_id=current_user["id"],
+            user_id=str(current_user.id),
             featuring_id=featuring_id,
             custom_bio=request.custom_bio,
             achievement_highlight=request.achievement_highlight,
@@ -300,7 +300,7 @@ async def update_featuring_content(
 
 
 @router.get("/purple-featuring/current", response_model=Dict)
-async def get_current_featured_founders(db: Session = Depends(get_db)):
+async def get_current_featured_founders(db: AsyncSession = Depends(get_database)):
     """Get currently featured founders for home screen display"""
     
     from .featuring import PurpleFeaturingService
@@ -315,7 +315,7 @@ async def get_current_featured_founders(db: Session = Depends(get_db)):
 async def track_featuring_interaction(
     featuring_id: str,
     interaction_type: str,  # view, click, profile, connect
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_database)
 ):
     """Track interaction with featuring (for analytics)"""
     
@@ -338,26 +338,26 @@ async def track_featuring_interaction(
 @router.get("/analytics", response_model=Dict)
 async def get_subscription_analytics(
     days: int = 30,
-    current_user: Dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_database)
 ):
     """Get subscription and featuring analytics"""
     
     service = SubscriptionService(db)
-    analytics = await service.get_subscription_analytics(current_user["id"], days)
+    analytics = await service.get_subscription_analytics(str(current_user.id), days)
     
     return analytics
 
 
 @router.get("/admin/metrics", response_model=Dict)
 async def get_platform_metrics(
-    admin_user: Dict = Depends(get_admin_user),
-    db: Session = Depends(get_db)
+    admin_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_database)
 ):
     """Get platform-wide subscription metrics (admin only)"""
     
     service = SubscriptionService(db)
-    metrics = await service.get_subscription_metrics(admin_user["id"])
+    metrics = await service.get_subscription_metrics(str(admin_user.id))
     
     return metrics
 
@@ -369,7 +369,7 @@ async def get_platform_metrics(
 @router.post("/webhooks/lemonsqueezy")
 async def lemonsqueezy_webhook(
     request: Request,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_database)
 ):
     """Handle LemonSqueezy webhook events"""
     
@@ -411,7 +411,7 @@ async def lemonsqueezy_webhook(
 @router.get("/features/{tier_slug}", response_model=Dict)
 async def get_tier_features(
     tier_slug: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_database)
 ):
     """Get detailed features for a specific tier"""
     
@@ -465,7 +465,7 @@ async def get_tier_features(
 @router.get("/referral/{referral_code}", response_model=Dict)
 async def validate_referral_code(
     referral_code: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_database)
 ):
     """Validate referral code and get referrer info"""
     

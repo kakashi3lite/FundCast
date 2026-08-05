@@ -165,3 +165,68 @@ class ExternalServiceError(FundCastException):
             status_code=502,
             details=details,
         )
+
+
+class CacheError(FundCastException):
+    """Cache read/write failures."""
+
+    def __init__(self, message: str = "Cache operation failed", details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="cache_error",
+            status_code=503,
+            details=details,
+        )
+
+
+class TaskError(FundCastException):
+    """Background task execution errors."""
+
+    def __init__(self, message: str, task_id: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+        details = details or {}
+        if task_id:
+            details["task_id"] = task_id
+        super().__init__(
+            message=message,
+            error_code="task_error",
+            status_code=500,
+            details=details,
+        )
+
+
+class DatabaseError(FundCastException):
+    """Database connection/query errors."""
+
+    def __init__(self, message: str = "Database operation failed", details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="database_error",
+            status_code=503,
+            details=details,
+        )
+
+
+class CircuitBreakerError(FundCastException):
+    """Circuit breaker open/tripped errors."""
+
+    def __init__(self, message: str = "Circuit breaker is open", details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="circuit_breaker_open",
+            status_code=503,
+            details=details,
+        )
+
+
+class ServiceUnavailableError(FundCastException):
+    """Dependency service unavailable."""
+
+    def __init__(self, service: str = "dependency", message: str = "Service unavailable", details: Optional[Dict[str, Any]] = None):
+        details = details or {}
+        details["service"] = service
+        super().__init__(
+            message=f"{service}: {message}",
+            error_code="service_unavailable",
+            status_code=503,
+            details=details,
+        )

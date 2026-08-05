@@ -15,8 +15,18 @@ from starlette.types import ASGIApp
 
 from .ai_threat_detector import AIThreatDetector, ThreatLevel, AttackType
 from .incident_response import IntelligentIncidentResponse
-from ..database import get_database
-from ..config import settings
+
+# Application settings are loaded defensively — the AI defense stack can operate
+# standalone, and ``src.api.config`` requires environment variables at import time.
+try:
+    from ..api.config import settings as _app_settings  # type: ignore[attr-defined]
+except Exception:  # pragma: no cover - config requires env vars at import
+    _app_settings = None
+
+
+def _ai_defense_enabled() -> bool:
+    """Return whether AI defense is enabled per application settings."""
+    return bool(getattr(_app_settings, "AI_DEFENSE_ENABLED", True))
 
 
 class AIDefenseMiddleware(BaseHTTPMiddleware):
@@ -420,7 +430,7 @@ def setup_ai_defense_middleware(app, config: Optional[Dict] = None):
     """Setup AI Defense Middleware with configuration"""
     
     default_config = {
-        "enabled": getattr(settings, "AI_DEFENSE_ENABLED", True),
+        "enabled": _ai_defense_enabled(),
         "threat_detector_config": {
             "prompt_injection_threshold": 0.8,
             "behavioral_anomaly_threshold": 0.7,

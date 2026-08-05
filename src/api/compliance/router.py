@@ -30,7 +30,7 @@ router = APIRouter()
 # Request/Response Models
 class KYCRequest(BaseModel):
     """KYC verification request."""
-    provider: str = Field(..., regex="^(stripe|persona|jumio)$")
+    provider: str = Field(..., pattern="^(stripe|persona|jumio)$")
     redirect_url: Optional[str] = Field(None, max_length=500)
     
     @validator('redirect_url')
@@ -52,7 +52,7 @@ class KYCStatus(BaseModel):
 
 class AccreditationRequest(BaseModel):
     """Accredited investor verification request."""
-    verification_method: str = Field(..., regex="^(income|net_worth|professional)$")
+    verification_method: str = Field(..., pattern="^(income|net_worth|professional)$")
     annual_income: Optional[int] = Field(None, ge=200000)  # cents
     net_worth: Optional[int] = Field(None, ge=100000000)  # cents (1M)
     professional_certifications: List[str] = []
@@ -79,10 +79,10 @@ class AccreditationStatus(BaseModel):
 class CompanyKYBRequest(BaseModel):
     """Company KYB verification request."""
     legal_name: str = Field(..., min_length=1, max_length=255)
-    tax_id: str = Field(..., regex=r'^\d{2}-\d{7}$')  # EIN format
+    tax_id: str = Field(..., pattern=r'^\d{2}-\d{7}$')  # EIN format
     incorporation_state: str = Field(..., min_length=2, max_length=2)
-    incorporation_country: str = Field(default="US", regex="^[A-Z]{2}$")
-    entity_type: str = Field(..., regex="^(corporation|llc|partnership|lp)$")
+    incorporation_country: str = Field(default="US", pattern="^[A-Z]{2}$")
+    entity_type: str = Field(..., pattern="^(corporation|llc|partnership|lp)$")
     business_address: Dict[str, str]
     authorized_officers: List[Dict[str, str]]
     
@@ -96,7 +96,7 @@ class CompanyKYBRequest(BaseModel):
 
 class OfferingComplianceRequest(BaseModel):
     """Securities offering compliance request."""
-    offering_type: str = Field(..., regex="^(reg_cf|reg_a|rule_506b|rule_506c)$")
+    offering_type: str = Field(..., pattern="^(reg_cf|reg_a|rule_506b|rule_506c)$")
     target_amount: int = Field(..., gt=0, le=500000000)  # cents, max $5M for Reg CF
     minimum_investment: int = Field(..., gt=0)
     use_of_proceeds: str = Field(..., min_length=100, max_length=2000)

@@ -1,83 +1,66 @@
 # Changelog
 
-All notable changes to FundCast will be documented in this file.
+All notable changes to FundCast are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
-- Comprehensive GitHub Actions CI/CD pipeline with 7 automated workflows
-- AI-powered testing with intelligent test generation and fuzzing
-- Complete dev container environment with VS Code integration
-- Production-ready multi-stage Dockerfile with security hardening
-- Comprehensive security scanning (SAST, dependency, container)
-- Automated documentation generation and GitHub Pages deployment
-- Blue-green deployment automation with health checks
-- Semantic versioning and automated release management
-- Pre-commit hooks with 20+ code quality checks
-- Enterprise-grade security compliance (OWASP ASVS L2)
+### Added (2026-08-06 — Structural Repair)
+- **Security framework completed**: implemented 5 missing modules
+  (`behavioral_analyzer`, `adversarial_filter`, `incident_response`,
+  `red_team_simulator`, `market_security`) so the full 12-symbol package imports.
+- **AI defense degraded gracefully**: heavy ML deps (torch/transformers/sklearn)
+  are now optional with a pure-Python fallback shim.
+- **Configuration**: added LemonSqueezy (11 fields), `DATABASE_READ_URL`,
+  `AI_DEFENSE_ENABLED`, Polygon crypto (USDC), and IPQS geo-enforcement settings.
+- **Frontend**: replaced a `package.json` that belonged to an unrelated project;
+  added Vite + React + TypeScript build (tsconfig, vite, tailwind, postcss,
+  entry point). Implemented the 9 missing `src/ui/lib` modules and the
+  `lib/index.ts` barrel.
+- **Exceptions**: added `CacheError`, `TaskError`, `DatabaseError`,
+  `CircuitBreakerError`, `ServiceUnavailableError`.
+- **Docs**: added `docs/PLATFORM_OVERVIEW.md`, `docs/architecture.md`,
+  `docs/api.md`, `docs/deployment.md`, `docs/compliance.md`.
+
+### Changed
+- **Subscriptions module converted to async SQLAlchemy 2.0** (router, service,
+  featuring, lemonsqueezy); fixed import paths; added `get_admin_user`.
+- **Database**: money columns re-typed `Mapped[int]` → `Mapped[Decimal]`;
+  renamed reserved `metadata` attributes to `metadata_json` (column preserved);
+  engine pool args now applied only for PostgreSQL (SQLite tests work).
+- **Pydantic v2 migration**: `Field(regex=…)` → `Field(pattern=…)` (12 sites).
+- **`@task` decorator** defers registration until a running event loop exists.
+- **Tests**: `asyncio_mode = "auto"` in pytest config; `pytest_asyncio.async_test`
+  compatibility shim; collection now succeeds (19 integration + 21 property/
+  benchmark tests).
+
+### Removed
+- Aspirational "95%+ coverage", "10x performance", "99.9% uptime" claims moved
+  to explicit targets in `docs/PLATFORM_OVERVIEW.md` (not yet measured).
 
 ## [1.0.0] - 2024-01-15
 
 ### Added
-- **🚀 Core Platform Features**
-  - FastAPI backend with async architecture
-  - JWT authentication with RBAC authorization
-  - PostgreSQL database with pgvector for AI embeddings
-  - Redis caching and session management
-  - Comprehensive security middleware stack
+- **Core Platform**: FastAPI async backend, JWT auth + RBAC, PostgreSQL +
+  pgvector models, Redis caching, security middleware stack.
+- **AI Inference**: semantic search (pgvector), content sanitization/PII
+  protection, query validation, rate limiting.
+- **Compliance**: Reg CF + 506(c) workflows, KYC/KYB models, audit trails.
+- **Trading**: prediction market models (binary/categorical/scalar), AMM price
+  math, position tracking, risk controls.
+- **Security**: OWASP ASVS L2 header stack, AES-GCM at rest, threat detection.
+- **API documentation**: OpenAPI 3.0 spec + Swagger/ReDoc.
 
-- **🤖 AI Inference Engine**
-  - Semantic search with vector embeddings
-  - Content sanitization and PII protection
-  - Query validation and injection prevention
-  - Rate limiting and abuse prevention
-
-- **⚖️ Compliance Framework**
-  - SEC Regulation Crowdfunding (Reg CF) workflows
-  - Rule 506(c) accredited investor verification
-  - KYC/KYB identity verification integration
-  - Comprehensive audit trails and reporting
-  - GDPR and data privacy compliance
-
-- **📊 Trading System**
-  - Dual-engine prediction markets (Order book + AMM)
-  - Binary, categorical, and scalar market types
-  - Real-time position tracking and P&L calculation
-  - Risk management with position limits
-  - Circuit breakers and settlement controls
-
-- **🛡️ Security Architecture**
-  - OWASP ASVS Level 2 compliance
-  - Multi-layer input validation
-  - AES-GCM encryption for sensitive data
-  - TLS 1.3 for data in transit
-  - Comprehensive threat protection
-
-- **📚 API Documentation**
-  - OpenAPI 3.0 specification
-  - Interactive Swagger/ReDoc interface
-  - Comprehensive endpoint documentation
-  - Code examples and usage guides
-
-### Changed
-- Updated Python requirements to use latest stable versions
-- Improved error handling with custom exception classes
-- Enhanced logging with structured format
-
-### Security
-- Implemented comprehensive security scanning pipeline
-- Added automatic dependency vulnerability checking
-- Enabled container security scanning with Trivy
-- Implemented secrets detection and prevention
+> Note: 1.0.0 entries reflect the original scaffold. Several capabilities were
+> verified as partial during the 2026-08-06 audit (see Unreleased + docs).
 
 ## [0.1.0] - 2024-01-01
 
 ### Added
-- Initial project structure
-- Basic FastAPI application setup
+- Initial project structure and basic FastAPI application setup.
+
 - Database models and relationships
 - Authentication middleware
 - Basic API endpoints

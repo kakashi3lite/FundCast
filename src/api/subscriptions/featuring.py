@@ -5,8 +5,8 @@ Manages the rotation and display of Purple tier members on the home screen
 import random
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc, asc, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, and_, or_, desc, asc
 
 from .models import (
     UserSubscription, SubscriptionTier, PurpleFeaturingSchedule, 
@@ -17,7 +17,7 @@ from .models import (
 class PurpleFeaturingService:
     """Service for managing Purple tier home screen featuring"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
         
         # Featuring configuration
@@ -43,7 +43,7 @@ class PurpleFeaturingService:
         """Generate optimal featuring schedule for Purple members"""
         
         # Get eligible Purple+ members
-        purple_members = self._get_eligible_purple_members()
+        purple_members = await self._get_eligible_purple_members()
         
         if not purple_members:
             return []
@@ -64,8 +64,8 @@ class PurpleFeaturingService:
         schedule.extend(story_schedule)
         
         # Bulk insert all schedules
-        self.db.bulk_save_objects(schedule)
-        self.db.commit()
+        self.db.add_all(schedule)
+        await self.db.commit()
         
         return schedule
     
@@ -84,7 +84,7 @@ class PurpleFeaturingService:
             slot_end = slot_start + timedelta(days=1)
             
             # Select member using weighted algorithm
-            selected_member = self._select_weighted_member(members, FeaturingType.HERO, slot_start)
+            selected_member = await self._select_weighted_member(members, FeaturingType.HERO, slot_start)
             
             if selected_member:
                 featuring = PurpleFeaturingSchedule(
@@ -119,7 +119,7 @@ class PurpleFeaturingService:
             week_end = week_start + timedelta(weeks=1)
             
             # Select 12 different members for the grid
-            grid_members = self._select_grid_members(members, self.config["grid_slots_concurrent"])
+            grid_members = await self._select_grid_members(members, self.config["grid_slots_concurrent"])
             
             for i, member in enumerate(grid_members):
                 featuring = PurpleFeaturingSchedule(
@@ -148,10 +148,10 @@ class PurpleFeaturingService:
         weeks = days // 7
         
         # Get members with notable achievements
-        story_candidates = [
-            member for member in members 
-            if self._has_recent_achievements(member)
-        ]
+        story_candidates = []
+        for member in members:
+            if await self._has_recent_achievements(member):
+                story_candidates.append(member)
         
         for week in range(weeks):
             week_start = start_date + timedelta(weeks=week)
@@ -171,23 +171,28 @@ class PurpleFeaturingService:
                     scheduled_start=week_start,
                     scheduled_end=week_end,
                     status=FeaturingStatus.SCHEDULED,
-                    achievement_highlight=self._generate_achievement_highlight(member)
+                    achievement_highlight=await self._generate_achievement_highlight(member)
                 )
                 schedule.append(featuring)
         
         return schedule
     
-    def _get_eligible_purple_members(self) -> List[UserSubscription]:
+    async def _get_eligible_purple_members(self) -> List[UserSubscription]:
         """Get active Purple/Kingmaker members eligible for featuring"""
         
-        return self.db.query(UserSubscription).join(SubscriptionTier).filter(
-            SubscriptionTier.slug.in_(["purple", "kingmaker"]),
-            UserSubscription.status == "active",
-            UserSubscription.home_featuring_enabled == True,
-            UserSubscription.current_period_end > datetime.utcnow()
-        ).all()
+        result = await self.db.execute(
+            select(UserSubscription)
+            .join(SubscriptionTier)
+            .where(
+                SubscriptionTier.slug.in_(["purple", "kingmaker"]),
+                UserSubscription.status == "active",
+                UserSubscription.home_featuring_enabled == True,
+                UserSubscription.current_period_end > datetime.utcnow(),
+            )
+        )
+        return result.scalars().all()
     
-    def _select_weighted_member(
+    async def _select_weighted_member(
         self, 
         members: List[UserSubscription], 
         featuring_type: FeaturingType,
@@ -201,7 +206,7 @@ class PurpleFeaturingService:
         # Filter members based on featuring constraints
         eligible_members = []
         for member in members:
-            if self._is_member_eligible(member, featuring_type, target_date):
+            if await self._is_member_eligible(member, featuring_type, target_date):
                 eligible_members.append(member)
         
         if not eligible_members:
@@ -210,14 +215,14 @@ class PurpleFeaturingService:
         # Calculate weights for each eligible member
         weights = []
         for member in eligible_members:
-            weight = self._calculate_member_weight(member, featuring_type)
+            weight = await self._calculate_member_weight(member, featuring_type)
             weights.append(weight)
         
         # Weighted random selection
         selected = random.choices(eligible_members, weights=weights, k=1)[0]
         return selected
     
-    def _select_grid_members(self, members: List[UserSubscription], count: int) -> List[UserSubscription]:
+    async def _select_grid_members(self, members: List[UserSubscription], count: int) -> List[UserSubscription]:
         """Select diverse set of members for grid featuring"""
         
         if len(members) <= count:
@@ -237,7 +242,9 @@ class PurpleFeaturingService:
         
         # Add Kingmakers first (weighted selection)
         if kingmakers:
-            kingmaker_weights = [self._calculate_member_weight(m, FeaturingType.GRID) for m in kingmakers]
+            kingmaker_weights = []
+            for m in kingmakers:
+                kingmaker_weights.append(await self._calculate_member_weight(m, FeaturingType.GRID))
             selected_kingmakers = random.choices(kingmakers, weights=kingmaker_weights, k=kingmaker_slots)
             selected.extend(selected_kingmakers)
             
@@ -251,7 +258,9 @@ class PurpleFeaturingService:
             purple_candidates = [m for m in remaining if m.tier.slug == "purple"]
             
             if purple_candidates:
-                purple_weights = [self._calculate_member_weight(m, FeaturingType.GRID) for m in purple_candidates]
+                purple_weights = []
+                for m in purple_candidates:
+                    purple_weights.append(await self._calculate_member_weight(m, FeaturingType.GRID))
                 selected_purples = random.choices(
                     purple_candidates, 
                     weights=purple_weights, 
@@ -261,7 +270,7 @@ class PurpleFeaturingService:
         
         return selected
     
-    def _calculate_member_weight(self, member: UserSubscription, featuring_type: FeaturingType) -> float:
+    async def _calculate_member_weight(self, member: UserSubscription, featuring_type: FeaturingType) -> float:
         """Calculate algorithm weight for member selection"""
         
         weight = 1.0
@@ -282,7 +291,7 @@ class PurpleFeaturingService:
         weight += recency_bonus * config["last_featured_weight"]
         
         # Engagement bonus (more active users get priority)
-        engagement_score = self._calculate_engagement_score(member)
+        engagement_score = await self._calculate_engagement_score(member)
         weight += engagement_score * config["engagement_weight"]
         
         # Tier bonus (Kingmaker > Purple)
@@ -298,7 +307,7 @@ class PurpleFeaturingService:
         
         return max(weight, 0.1)  # Minimum weight
     
-    def _is_member_eligible(
+    async def _is_member_eligible(
         self, 
         member: UserSubscription, 
         featuring_type: FeaturingType, 
@@ -307,13 +316,16 @@ class PurpleFeaturingService:
         """Check if member is eligible for featuring at target date"""
         
         # Check if already scheduled around target date
-        existing_featuring = self.db.query(PurpleFeaturingSchedule).filter(
-            PurpleFeaturingSchedule.user_id == member.user_id,
-            PurpleFeaturingSchedule.featuring_type == featuring_type,
-            PurpleFeaturingSchedule.scheduled_start <= target_date + timedelta(days=1),
-            PurpleFeaturingSchedule.scheduled_end >= target_date - timedelta(days=1),
-            PurpleFeaturingSchedule.status.in_([FeaturingStatus.SCHEDULED, FeaturingStatus.ACTIVE])
-        ).first()
+        existing_result = await self.db.execute(
+            select(PurpleFeaturingSchedule).where(
+                PurpleFeaturingSchedule.user_id == member.user_id,
+                PurpleFeaturingSchedule.featuring_type == featuring_type,
+                PurpleFeaturingSchedule.scheduled_start <= target_date + timedelta(days=1),
+                PurpleFeaturingSchedule.scheduled_end >= target_date - timedelta(days=1),
+                PurpleFeaturingSchedule.status.in_([FeaturingStatus.SCHEDULED, FeaturingStatus.ACTIVE]),
+            )
+        )
+        existing_featuring = existing_result.scalars().first()
         
         if existing_featuring:
             return False
@@ -323,12 +335,14 @@ class PurpleFeaturingService:
             month_start = target_date.replace(day=1)
             month_end = (month_start + timedelta(days=32)).replace(day=1)
             
-            monthly_hero_count = self.db.query(PurpleFeaturingSchedule).filter(
-                PurpleFeaturingSchedule.user_id == member.user_id,
-                PurpleFeaturingSchedule.featuring_type == FeaturingType.HERO,
-                PurpleFeaturingSchedule.scheduled_start >= month_start,
-                PurpleFeaturingSchedule.scheduled_start < month_end
-            ).count()
+            monthly_hero_count = (await self.db.execute(
+                select(func.count()).select_from(PurpleFeaturingSchedule).where(
+                    PurpleFeaturingSchedule.user_id == member.user_id,
+                    PurpleFeaturingSchedule.featuring_type == FeaturingType.HERO,
+                    PurpleFeaturingSchedule.scheduled_start >= month_start,
+                    PurpleFeaturingSchedule.scheduled_start < month_end,
+                )
+            )).scalar()
             
             if monthly_hero_count >= self.config["max_hero_per_month"]:
                 return False
@@ -341,14 +355,15 @@ class PurpleFeaturingService:
         
         return True
     
-    def _calculate_engagement_score(self, member: UserSubscription) -> float:
+    async def _calculate_engagement_score(self, member: UserSubscription) -> float:
         """Calculate engagement score for member (0.0 to 1.0)"""
         
         # Get recent analytics (last 30 days)
-        recent_analytics = self.db.query(FeaturingAnalytics).filter(
+        recent_result = await self.db.execute(select(FeaturingAnalytics).where(
             FeaturingAnalytics.user_id == member.user_id,
-            FeaturingAnalytics.date >= datetime.utcnow() - timedelta(days=30)
-        ).all()
+            FeaturingAnalytics.date >= datetime.utcnow() - timedelta(days=30),
+        ))
+        recent_analytics = recent_result.scalars().all()
         
         if not recent_analytics:
             return 0.5  # Default score for new members
@@ -370,15 +385,15 @@ class PurpleFeaturingService:
         
         return engagement_score
     
-    def _has_recent_achievements(self, member: UserSubscription) -> bool:
+    async def _has_recent_achievements(self, member: UserSubscription) -> bool:
         """Check if member has recent achievements worth highlighting"""
         
         # This would integrate with user achievements system
         # For now, return True for members with good engagement
-        engagement_score = self._calculate_engagement_score(member)
+        engagement_score = await self._calculate_engagement_score(member)
         return engagement_score > 0.6
     
-    def _generate_achievement_highlight(self, member: UserSubscription) -> str:
+    async def _generate_achievement_highlight(self, member: UserSubscription) -> str:
         """Generate achievement highlight text for member"""
         
         # This would integrate with user achievements system
@@ -389,10 +404,11 @@ class PurpleFeaturingService:
             achievements.append("Kingmaker tier member")
         
         # Get recent prediction success rate
-        recent_analytics = self.db.query(FeaturingAnalytics).filter(
+        recent_result = await self.db.execute(select(FeaturingAnalytics).where(
             FeaturingAnalytics.user_id == member.user_id,
-            FeaturingAnalytics.date >= datetime.utcnow() - timedelta(days=30)
-        ).all()
+            FeaturingAnalytics.date >= datetime.utcnow() - timedelta(days=30),
+        ))
+        recent_analytics = recent_result.scalars().all()
         
         if recent_analytics:
             total_predictions = sum(a.predictions_made for a in recent_analytics)
@@ -412,28 +428,39 @@ class PurpleFeaturingService:
         now = datetime.utcnow()
         
         # Get active hero founder
-        hero_featuring = self.db.query(PurpleFeaturingSchedule).filter(
+        hero_result = await self.db.execute(select(PurpleFeaturingSchedule).where(
             PurpleFeaturingSchedule.featuring_type == FeaturingType.HERO,
             PurpleFeaturingSchedule.scheduled_start <= now,
             PurpleFeaturingSchedule.scheduled_end > now,
-            PurpleFeaturingSchedule.status == FeaturingStatus.SCHEDULED
-        ).first()
+            PurpleFeaturingSchedule.status == FeaturingStatus.SCHEDULED,
+        ))
+        hero_featuring = hero_result.scalars().first()
         
         # Get active grid founders
-        grid_featuring = self.db.query(PurpleFeaturingSchedule).filter(
-            PurpleFeaturingSchedule.featuring_type == FeaturingType.GRID,
-            PurpleFeaturingSchedule.scheduled_start <= now,
-            PurpleFeaturingSchedule.scheduled_end > now,
-            PurpleFeaturingSchedule.status == FeaturingStatus.SCHEDULED
-        ).limit(12).all()
+        grid_result = await self.db.execute(
+            select(PurpleFeaturingSchedule)
+            .where(
+                PurpleFeaturingSchedule.featuring_type == FeaturingType.GRID,
+                PurpleFeaturingSchedule.scheduled_start <= now,
+                PurpleFeaturingSchedule.scheduled_end > now,
+                PurpleFeaturingSchedule.status == FeaturingStatus.SCHEDULED,
+            )
+            .limit(12)
+        )
+        grid_featuring = grid_result.scalars().all()
         
         # Get active success stories
-        story_featuring = self.db.query(PurpleFeaturingSchedule).filter(
-            PurpleFeaturingSchedule.featuring_type == FeaturingType.STORY,
-            PurpleFeaturingSchedule.scheduled_start <= now,
-            PurpleFeaturingSchedule.scheduled_end > now,
-            PurpleFeaturingSchedule.status == FeaturingStatus.SCHEDULED
-        ).limit(5).all()
+        story_result = await self.db.execute(
+            select(PurpleFeaturingSchedule)
+            .where(
+                PurpleFeaturingSchedule.featuring_type == FeaturingType.STORY,
+                PurpleFeaturingSchedule.scheduled_start <= now,
+                PurpleFeaturingSchedule.scheduled_end > now,
+                PurpleFeaturingSchedule.status == FeaturingStatus.SCHEDULED,
+            )
+            .limit(5)
+        )
+        story_featuring = story_result.scalars().all()
         
         # Format for frontend
         featured_data = {
@@ -449,7 +476,7 @@ class PurpleFeaturingService:
             if featuring and featuring.status == FeaturingStatus.SCHEDULED:
                 featuring.status = FeaturingStatus.ACTIVE
         
-        self.db.commit()
+        await self.db.commit()
         
         return featured_data
     
@@ -511,9 +538,10 @@ class PurpleFeaturingService:
     async def track_featuring_impression(self, featuring_id: str, impression_type: str = "view"):
         """Track impression/interaction with featuring"""
         
-        featuring = self.db.query(PurpleFeaturingSchedule).filter(
+        featuring_result = await self.db.execute(select(PurpleFeaturingSchedule).where(
             PurpleFeaturingSchedule.id == featuring_id
-        ).first()
+        ))
+        featuring = featuring_result.scalars().first()
         
         if featuring:
             if impression_type == "view":
@@ -525,40 +553,43 @@ class PurpleFeaturingService:
             elif impression_type == "connect":
                 featuring.connections_generated += 1
             
-            self.db.commit()
+            await self.db.commit()
     
     async def enable_user_featuring(self, user_id: str):
         """Enable featuring for a user (when they upgrade to Purple)"""
         
-        subscription = self.db.query(UserSubscription).filter(
+        subscription_result = await self.db.execute(select(UserSubscription).where(
             UserSubscription.user_id == user_id,
-            UserSubscription.status == "active"
-        ).first()
+            UserSubscription.status == "active",
+        ))
+        subscription = subscription_result.scalars().first()
         
         if subscription and subscription.tier.slug in ["purple", "kingmaker"]:
             subscription.home_featuring_enabled = True
             subscription.featuring_weight = 1
-            self.db.commit()
+            await self.db.commit()
     
     async def disable_user_featuring(self, user_id: str):
         """Disable featuring for a user (when they downgrade/cancel)"""
         
         # Disable future featuring
-        subscription = self.db.query(UserSubscription).filter(
+        subscription_result = await self.db.execute(select(UserSubscription).where(
             UserSubscription.user_id == user_id
-        ).first()
+        ))
+        subscription = subscription_result.scalars().first()
         
         if subscription:
             subscription.home_featuring_enabled = False
             
             # Cancel future scheduled featuring
-            future_featuring = self.db.query(PurpleFeaturingSchedule).filter(
+            future_result = await self.db.execute(select(PurpleFeaturingSchedule).where(
                 PurpleFeaturingSchedule.user_id == user_id,
                 PurpleFeaturingSchedule.scheduled_start > datetime.utcnow(),
-                PurpleFeaturingSchedule.status == FeaturingStatus.SCHEDULED
-            ).all()
+                PurpleFeaturingSchedule.status == FeaturingStatus.SCHEDULED,
+            ))
+            future_featuring = future_result.scalars().all()
             
             for featuring in future_featuring:
                 featuring.status = FeaturingStatus.CANCELLED
             
-            self.db.commit()
+            await self.db.commit()

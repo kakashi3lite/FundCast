@@ -296,6 +296,11 @@ benchmark_results/
 security_reports/
 audit_reports/
 
+# The Python `lib/` rule above must NOT exclude the frontend library
+# directory (src/ui/lib/). These negations take precedence (later rules win).
+!src/ui/lib/
+!src/ui/lib/**
+
 # AI model files (too large for git)
 *.model
 *.bin

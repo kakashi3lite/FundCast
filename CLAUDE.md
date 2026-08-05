@@ -3,18 +3,25 @@
 ## Project: FundCast ⚡
 AI-first social funding + forecasting platform for SaaS founders
 
-## 📊 **Progress Status: 70% Complete** 
+## 📊 **Progress Status: ~45% Complete** (accurate as of 2026-08-06)
 ✅ **Backend Foundation**: FastAPI + Security + Auth + RBAC + Database  
-✅ **Compliance System**: Reg CF + 506(c) + KYC/KYB workflows  
-✅ **Prediction Markets**: Dual-engine (Order book + AMM) trading system  
-🔄 **AI Inference**: Semantic search + Red Team security (in progress)  
-⏳ **Frontend**: Next.js + Lightweight Charts (pending)  
-⏳ **DevOps**: Docker + CI/CD + Monitoring (pending)  
+✅ **Compliance System**: Reg CF + 506(c) + KYC/KYB workflows (models + validation)  
+🟡 **Prediction Markets**: Router + AMM math present; order book/settlement engines pending  
+✅ **Subscriptions**: Tier system, LemonSqueezy client, Purple featuring (async, SQLAlchemy 2.0)  
+✅ **Security Framework**: AI defense middleware, threat detector, 5 defense modules (behavioral, adversarial, incident response, red team, market integrity)  
+🟡 **AI Inference**: Semantic search implemented; ONNX runtime + model serving pending  
+🟡 **Frontend**: React + Vite + TS + Tailwind + Framer Motion — buildable, production build passes  
+🟡 **Tests**: 19 integration + 21 property/benchmark collect; several tests need repair  
+⏳ **DevOps**: Dockerfile present; CI/CD + Alembic migrations + SBOM pending
+
+> Earlier claims of "70% complete" and "≥95% test coverage" were aspirational.
+> Coverage figures will be reported only when the suite runs green.
 
 ## Architecture
-- **Backend**: Python FastAPI + ONNX Runtime inference ✅
-- **Frontend**: Node.js/TypeScript Next.js + Lightweight Charts ⏳
+- **Backend**: Python FastAPI + async SQLAlchemy 2.0 + pgvector ✅
+- **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + Framer Motion 🟡
 - **Database**: PostgreSQL + pgvector 0.7 ✅
+- **Payments**: LemonSqueezy + Polygon USDC (config-gated) 🟡
 - **Deployment**: Docker + GitHub Actions CI/CD ⏳
 
 ## Key Commands
@@ -41,14 +48,15 @@ make test-e2e     # End-to-end tests
 - **OWASP ASVS Level 2**: Complete middleware stack with headers, CSRF, XSS protection
 - **OWASP API Security Top 10**: Input validation, rate limiting, broken authentication prevention
 - **OWASP LLM Security Top 10**: Prompt injection prevention, PII sanitization, model access controls
+- **AI Defense Framework**: Threat detector, behavioral authenticity, adversarial input neutralizer, incident response, red team simulator, prediction-market integrity
 - **Encryption**: AES-GCM for data at rest, TLS 1.3 in transit
 - **Red Team Protection**: SQL injection, path traversal, code injection prevention
 - **RBAC**: Fine-grained permissions with role inheritance
 
-## Performance Targets
+## Performance Targets (aspirational — to be measured)
 - Container startup: ≤1.5s
 - Image size: ≤300MB  
-- Test coverage: ≥95% line+branch ✅ **Framework Ready**
+- Test coverage: ≥95% line+branch (target; suite not yet green)
 - API response time: <200ms p95
 
 ## Compliance Features ✅ **COMPLETED**
@@ -64,8 +72,8 @@ make test-e2e     # End-to-end tests
 - **Query Validation**: Anti-injection and path traversal protection
 - **Rate Limiting**: AI request throttling and abuse prevention
 
-## Trading System ✅ **COMPLETED**
-- **Dual Engine**: Order book and AMM market makers
+## Trading System 🟡 **PARTIALLY IMPLEMENTED**
+- **Dual Engine**: Router + AMM math present; **order book engine + settlement pending**
 - **Market Types**: Binary, categorical, and scalar prediction markets  
 - **Risk Management**: Position limits, balance verification, settlement controls
 - **Real-time Analytics**: Live market statistics and portfolio tracking
@@ -75,4 +83,5 @@ make test-e2e     # End-to-end tests
 - **User Management**: Profile CRUD, admin controls, role management
 - **Compliance**: KYC/KYB workflows, accreditation verification, audit reports
 - **Markets**: Market creation, trading, position tracking, resolution
+- **Subscriptions**: Tiers, LemonSqueezy checkout, Purple featuring, webhooks, metrics
 - **Security**: All endpoints protected with RBAC and input validation

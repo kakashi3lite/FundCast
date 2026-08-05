@@ -116,6 +116,10 @@ def require_roles(required_roles: List[str]) -> Callable:
     return role_checker
 
 
+# Reusable admin gate: requires the ``admin`` role and returns the User.
+get_admin_user = require_roles(["admin"])
+
+
 async def get_optional_user(
     request: Request,
     db: AsyncSession = Depends(get_database),

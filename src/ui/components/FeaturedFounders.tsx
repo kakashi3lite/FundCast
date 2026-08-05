@@ -9,10 +9,10 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useSceneSystem } from '../lib/scene-provider'
 import { Glass, Interactive } from '../lib/scene-system'
-import { StaggerList, SharedElement } from '../lib/advanced-animations'
+import { StaggerList } from '../lib/advanced-animations'
 import { DopamineTrigger } from '../lib/gambling-psychology'
 import { cn } from '../lib/utils'
 

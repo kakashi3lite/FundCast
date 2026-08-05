@@ -1,35 +1,30 @@
 {
-  "name": "kakashi3lite",
-  "version": "1.0.0",
-  "description": "TANAVADE_SWANAND_002774342",
-  "main": "index.js",
+  "name": "fundcast",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FundCast — AI-first social funding + forecasting platform for SaaS founders",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/ui --ext ts,tsx"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://kakashi3lite@github.com/kakashi3lite/AED-Assignment2.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/kakashi3lite/AED-Assignment2/issues"
-  },
-  "homepage": "https://github.com/kakashi3lite/AED-Assignment2#readme",
   "dependencies": {
-    "@reduxjs/toolkit": "^1.9.0",
-    "@supabase/auth-ui-react": "^0.4.7",
-    "@supabase/auth-ui-shared": "^0.1.8",
-    "@supabase/supabase-js": "^2.49.4",
-    "claude": "^0.1.1",
-    "code": "^5.2.4",
-    "crypto-js": "^4.2.0",
-    "ejs": "^3.1.8",
-    "express": "^4.18.2",
-    "mongod": "^2.0.0",
-    "mongodb": "^4.11.0",
-    "mongoose": "^6.7.2",
-    "sass": "^1.56.1"
+    "ethers": "^6.13.4",
+    "framer-motion": "^11.11.9",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
   }
 }

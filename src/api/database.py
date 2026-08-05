@@ -1,6 +1,7 @@
 """Database configuration and models."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import AsyncGenerator, Optional, Dict, Any
 import uuid
 
@@ -153,8 +154,8 @@ class Company(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     
-    # Metadata
-    metadata: Mapped[Optional[dict]] = mapped_column(JSONB)
+    # Metadata (attribute renamed; DB column stays "metadata")
+    metadata_json: Mapped[Optional[dict]] = mapped_column("metadata", JSONB)
     
     # Relationships
     owner = relationship("User", back_populates="companies")
@@ -176,12 +177,12 @@ class Offering(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     
     # Financial terms
-    target_amount: Mapped[int] = mapped_column(Numeric(15, 2), nullable=False)  # cents
-    minimum_amount: Mapped[Optional[int]] = mapped_column(Numeric(15, 2))
-    maximum_amount: Mapped[Optional[int]] = mapped_column(Numeric(15, 2))
+    target_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    minimum_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 2))
+    maximum_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 2))
     
-    price_per_share: Mapped[Optional[int]] = mapped_column(Numeric(10, 2))  # cents
-    minimum_investment: Mapped[int] = mapped_column(Numeric(10, 2), nullable=False)
+    price_per_share: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
+    minimum_investment: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     
     # Regulatory
     offering_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
@@ -225,7 +226,7 @@ class Investment(Base):
     __tablename__ = "investments"
     
     # Investment details
-    amount: Mapped[int] = mapped_column(Numeric(12, 2), nullable=False)  # cents
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     shares: Mapped[Optional[int]] = mapped_column(Integer)
     
     # Status tracking
@@ -292,8 +293,8 @@ class Market(Base):
         index=True,
     )  # active, paused, resolved, cancelled
     
-    # Metadata
-    metadata: Mapped[Optional[dict]] = mapped_column(JSONB)
+    # Metadata (attribute renamed; DB column stays "metadata")
+    metadata_json: Mapped[Optional[dict]] = mapped_column("metadata", JSONB)
     
     # AI embeddings for semantic search
     embedding: Mapped[Optional[list]] = mapped_column(Vector(384))
@@ -317,12 +318,12 @@ class MarketPosition(Base):
     
     # Position details
     outcome: Mapped[str] = mapped_column(String(100), nullable=False)
-    shares: Mapped[int] = mapped_column(Numeric(12, 6), nullable=False)
-    avg_price: Mapped[int] = mapped_column(Numeric(8, 6), nullable=False)  # Average price paid
+    shares: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    avg_price: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False)  # Average price paid
     
     # Current value
-    current_value: Mapped[int] = mapped_column(Numeric(12, 2), default=0)
-    unrealized_pnl: Mapped[int] = mapped_column(Numeric(12, 2), default=0)
+    current_value: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
+    unrealized_pnl: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     
     # Relationships
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
@@ -339,15 +340,21 @@ class MarketPosition(Base):
     )
 
 
-# Database session management
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
-    pool_pre_ping=True,
-    pool_recycle=300,
-)
+# Database session management.
+# Pool sizing options are PostgreSQL-specific (SQLite/aiosqlite reject them),
+# so they are applied only when the configured URL targets PostgreSQL.
+_engine_kwargs: Dict[str, Any] = {
+    "echo": settings.DEBUG,
+    "pool_pre_ping": True,
+}
+if settings.DATABASE_URL.startswith("postgresql"):
+    _engine_kwargs.update({
+        "pool_size": settings.DATABASE_POOL_SIZE,
+        "max_overflow": settings.DATABASE_MAX_OVERFLOW,
+        "pool_recycle": 300,
+    })
+
+engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
 
 async_session = async_sessionmaker(
     engine,

@@ -10,6 +10,12 @@ import uuid
 
 import pytest
 import pytest_asyncio
+
+# pytest-asyncio >= 1.0 removed the ``async_test`` decorator; alias it to the
+# modern ``@pytest.mark.asyncio`` marker so the existing test methods work.
+if not hasattr(pytest_asyncio, "async_test"):
+    pytest_asyncio.async_test = pytest.mark.asyncio
+
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker

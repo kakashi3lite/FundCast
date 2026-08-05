@@ -11,15 +11,50 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple, Union
 from enum import Enum
 from dataclasses import dataclass
-import numpy as np
-from transformers import AutoTokenizer, AutoModel
-import torch
-from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import StandardScaler
 
-from ..ai_inference.models import get_model_manager
-from ..database import get_database
-from ..config import settings
+# Heavy ML dependencies are optional: the detector degrades gracefully to
+# pattern-based detection when they are not installed.
+try:
+    import numpy as np
+    from transformers import AutoTokenizer, AutoModel
+    import torch
+    from sklearn.ensemble import IsolationForest
+    from sklearn.preprocessing import StandardScaler
+
+    _ML_AVAILABLE = True
+except Exception:  # pragma: no cover - optional heavy dependencies
+    torch = None  # type: ignore[assignment]
+    IsolationForest = None  # type: ignore[assignment,misc]
+    StandardScaler = None  # type: ignore[assignment,misc]
+    _ML_AVAILABLE = False
+
+    class _NumpyFallback:
+        """Minimal pure-Python stand-in for the few numpy calls used here."""
+
+        ndarray = Any  # type annotation compatibility
+
+        @staticmethod
+        def mean(values) -> float:
+            values = list(values)
+            return sum(values) / len(values) if values else 0.0
+
+        @staticmethod
+        def var(values) -> float:
+            values = list(values)
+            if not values:
+                return 0.0
+            mean = _NumpyFallback.mean(values)
+            return sum((v - mean) ** 2 for v in values) / len(values)
+
+        @staticmethod
+        def array(values, dtype=None):
+            return list(values)
+
+        @staticmethod
+        def abs(values):
+            return [abs(v) for v in values]
+
+    np = _NumpyFallback()  # type: ignore[assignment]
 
 
 class ThreatLevel(Enum):
@@ -304,8 +339,13 @@ class BehavioralAnomalyDetector:
     """Detect behavioral anomalies indicating AI-powered attacks"""
     
     def __init__(self):
-        self.isolation_forest = IsolationForest(contamination=0.1, random_state=42)
-        self.scaler = StandardScaler()
+        # ML components are optional; without sklearn we rely on heuristics.
+        if IsolationForest is not None and StandardScaler is not None:
+            self.isolation_forest = IsolationForest(contamination=0.1, random_state=42)
+            self.scaler = StandardScaler()
+        else:
+            self.isolation_forest = None
+            self.scaler = None
         self.is_trained = False
         self.baseline_features = {}
         
@@ -538,8 +578,9 @@ class BehavioralAnomalyDetector:
             # Without baseline, use isolation forest on current features
             feature_vector = np.array(list(features.values())).reshape(1, -1)
             
-            if not self.is_trained:
-                # Use current features as baseline (first session)
+            if not self.is_trained or self.isolation_forest is None or self.scaler is None:
+                # Use current features as baseline (first session) or degrade
+                # gracefully when ML components are unavailable.
                 return 0.0
             
             # Normalize features

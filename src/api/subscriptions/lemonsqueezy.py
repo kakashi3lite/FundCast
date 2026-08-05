@@ -9,10 +9,10 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.config import settings
-from src.api.database import get_db
 from .models import UserSubscription, SubscriptionTier, SubscriptionStatus, BillingCycle
 
 
@@ -234,7 +234,7 @@ class LemonSqueezyClient:
         
         return hmac.compare_digest(f"sha256={expected_signature}", signature)
     
-    async def handle_webhook(self, event_type: str, event_data: Dict, db: Session):
+    async def handle_webhook(self, event_type: str, event_data: Dict, db: AsyncSession):
         """Handle LemonSqueezy webhook events"""
         
         event_handlers = {
@@ -256,7 +256,7 @@ class LemonSqueezyClient:
         else:
             print(f"Unhandled webhook event type: {event_type}")
     
-    async def _handle_subscription_created(self, event_data: Dict, db: Session):
+    async def _handle_subscription_created(self, event_data: Dict, db: AsyncSession):
         """Process new subscription creation"""
         
         attributes = event_data["data"]["attributes"]
@@ -271,9 +271,10 @@ class LemonSqueezyClient:
             raise ValueError("Missing required custom data in subscription webhook")
         
         # Get tier info
-        tier = db.query(SubscriptionTier).filter(
+        result = await db.execute(select(SubscriptionTier).where(
             SubscriptionTier.slug == tier_slug
-        ).first()
+        ))
+        tier = result.scalars().first()
         
         if not tier:
             raise ValueError(f"Unknown subscription tier: {tier_slug}")
@@ -305,7 +306,7 @@ class LemonSqueezyClient:
         )
         
         db.add(subscription)
-        db.commit()
+        await db.commit()
         
         # Enable Purple featuring if applicable
         if tier_slug in ["purple", "kingmaker"]:
@@ -314,15 +315,16 @@ class LemonSqueezyClient:
         # Track conversion for analytics
         await self._track_subscription_created(user_id, tier_slug, billing_cycle)
     
-    async def _handle_subscription_updated(self, event_data: Dict, db: Session):
+    async def _handle_subscription_updated(self, event_data: Dict, db: AsyncSession):
         """Process subscription updates"""
         
         attributes = event_data["data"]["attributes"]
         external_id = str(attributes["id"])
         
-        subscription = db.query(UserSubscription).filter(
+        result = await db.execute(select(UserSubscription).where(
             UserSubscription.external_subscription_id == external_id
-        ).first()
+        ))
+        subscription = result.scalars().first()
         
         if not subscription:
             print(f"Subscription not found for external ID: {external_id}")
@@ -351,53 +353,56 @@ class LemonSqueezyClient:
         subscription.status = status_mapping.get(ls_status, SubscriptionStatus.ACTIVE)
         subscription.updated_at = datetime.utcnow()
         
-        db.commit()
+        await db.commit()
     
-    async def _handle_subscription_cancelled(self, event_data: Dict, db: Session):
+    async def _handle_subscription_cancelled(self, event_data: Dict, db: AsyncSession):
         """Process subscription cancellation"""
         
         attributes = event_data["data"]["attributes"]
         external_id = str(attributes["id"])
         
-        subscription = db.query(UserSubscription).filter(
+        result = await db.execute(select(UserSubscription).where(
             UserSubscription.external_subscription_id == external_id
-        ).first()
+        ))
+        subscription = result.scalars().first()
         
         if subscription:
             subscription.status = SubscriptionStatus.CANCELED
             subscription.canceled_at = datetime.utcnow()
             subscription.home_featuring_enabled = False  # Disable featuring
-            db.commit()
+            await db.commit()
             
             # Disable Purple featuring
             await self._disable_purple_featuring(subscription.user_id, db)
     
-    async def _handle_payment_success(self, event_data: Dict, db: Session):
+    async def _handle_payment_success(self, event_data: Dict, db: AsyncSession):
         """Process successful payment"""
         
         attributes = event_data["data"]["attributes"]
         subscription_id = str(attributes.get("subscription_id"))
         amount = int(attributes.get("subtotal", 0))  # In cents
         
-        subscription = db.query(UserSubscription).filter(
+        result = await db.execute(select(UserSubscription).where(
             UserSubscription.external_subscription_id == subscription_id
-        ).first()
+        ))
+        subscription = result.scalars().first()
         
         if subscription:
             subscription.total_paid += amount
             subscription.payment_failures = 0  # Reset failure count
             subscription.updated_at = datetime.utcnow()
-            db.commit()
+            await db.commit()
     
-    async def _handle_payment_failed(self, event_data: Dict, db: Session):
+    async def _handle_payment_failed(self, event_data: Dict, db: AsyncSession):
         """Process failed payment"""
         
         attributes = event_data["data"]["attributes"]
         subscription_id = str(attributes.get("subscription_id"))
         
-        subscription = db.query(UserSubscription).filter(
+        result = await db.execute(select(UserSubscription).where(
             UserSubscription.external_subscription_id == subscription_id
-        ).first()
+        ))
+        subscription = result.scalars().first()
         
         if subscription:
             subscription.payment_failures += 1
@@ -408,19 +413,19 @@ class LemonSqueezyClient:
                 subscription.home_featuring_enabled = False
             
             subscription.updated_at = datetime.utcnow()
-            db.commit()
+            await db.commit()
             
             # Send payment failure notification
             await self._notify_payment_failure(subscription)
     
-    async def _enable_purple_featuring(self, user_id: str, db: Session):
+    async def _enable_purple_featuring(self, user_id: str, db: AsyncSession):
         """Enable Purple tier featuring for user"""
         from .featuring import PurpleFeaturingService
         
         featuring_service = PurpleFeaturingService(db)
         await featuring_service.enable_user_featuring(user_id)
     
-    async def _disable_purple_featuring(self, user_id: str, db: Session):
+    async def _disable_purple_featuring(self, user_id: str, db: AsyncSession):
         """Disable Purple tier featuring for user"""
         from .featuring import PurpleFeaturingService
         

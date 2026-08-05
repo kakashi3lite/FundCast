@@ -27,10 +27,25 @@ class Settings(BaseSettings):
     
     @validator("ENCRYPTION_KEY", pre=True)
     def parse_encryption_key(cls, v):
-        """Parse encryption key from environment."""
+        """Parse encryption key from environment.
+
+        Fernet expects the URL-safe base64-encoded key bytes (not the raw
+        decoded bytes). We validate that the value decodes to exactly 32
+        bytes and return the base64 text as bytes for ``Fernet``.
+        """
         if isinstance(v, str):
             import base64
-            return base64.b64decode(v)
+            stripped = v.strip()
+            padded = stripped + "=" * (-len(stripped) % 4)
+            try:
+                decoded = base64.urlsafe_b64decode(padded)
+            except Exception:
+                decoded = base64.b64decode(padded)
+            if len(decoded) != 32:
+                raise ValueError("ENCRYPTION_KEY must decode to 32 bytes")
+            return padded.encode()
+        if isinstance(v, bytes):
+            return v
         return v
     
     # CORS
@@ -61,6 +76,7 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: str = Field(..., env="DATABASE_URL")
+    DATABASE_READ_URL: Optional[str] = Field(default=None, env="DATABASE_READ_URL")
     DATABASE_POOL_SIZE: int = Field(default=20, env="DATABASE_POOL_SIZE")
     DATABASE_MAX_OVERFLOW: int = Field(default=0, env="DATABASE_MAX_OVERFLOW")
     
@@ -116,7 +132,47 @@ class Settings(BaseSettings):
     ENABLE_REGISTRATION: bool = Field(default=True, env="ENABLE_REGISTRATION")
     ENABLE_MARKET_CREATION: bool = Field(default=True, env="ENABLE_MARKET_CREATION")
     ENABLE_AI_FEATURES: bool = Field(default=True, env="ENABLE_AI_FEATURES")
-    
+    AI_DEFENSE_ENABLED: bool = Field(default=True, env="AI_DEFENSE_ENABLED")
+
+    # LemonSqueezy (subscriptions / payment processing)
+    LEMONSQUEEZY_API_KEY: Optional[str] = Field(default=None, env="LEMONSQUEEZY_API_KEY")
+    LEMONSQUEEZY_STORE_ID: Optional[str] = Field(default=None, env="LEMONSQUEEZY_STORE_ID")
+    LEMONSQUEEZY_WEBHOOK_SECRET: Optional[str] = Field(default=None, env="LEMONSQUEEZY_WEBHOOK_SECRET")
+    LEMONSQUEEZY_ORACLE_MONTHLY_VARIANT: Optional[str] = Field(default=None, env="LEMONSQUEEZY_ORACLE_MONTHLY_VARIANT")
+    LEMONSQUEEZY_ORACLE_ANNUAL_VARIANT: Optional[str] = Field(default=None, env="LEMONSQUEEZY_ORACLE_ANNUAL_VARIANT")
+    LEMONSQUEEZY_WHALE_MONTHLY_VARIANT: Optional[str] = Field(default=None, env="LEMONSQUEEZY_WHALE_MONTHLY_VARIANT")
+    LEMONSQUEEZY_WHALE_ANNUAL_VARIANT: Optional[str] = Field(default=None, env="LEMONSQUEEZY_WHALE_ANNUAL_VARIANT")
+    LEMONSQUEEZY_PURPLE_MONTHLY_VARIANT: Optional[str] = Field(default=None, env="LEMONSQUEEZY_PURPLE_MONTHLY_VARIANT")
+    LEMONSQUEEZY_PURPLE_ANNUAL_VARIANT: Optional[str] = Field(default=None, env="LEMONSQUEEZY_PURPLE_ANNUAL_VARIANT")
+    LEMONSQUEEZY_KINGMAKER_MONTHLY_VARIANT: Optional[str] = Field(default=None, env="LEMONSQUEEZY_KINGMAKER_MONTHLY_VARIANT")
+    LEMONSQUEEZY_KINGMAKER_ANNUAL_VARIANT: Optional[str] = Field(default=None, env="LEMONSQUEEZY_KINGMAKER_ANNUAL_VARIANT")
+
+    # Polygon crypto payments (USDC)
+    CRYPTO_PAYMENT_ENABLED: bool = Field(default=False, env="CRYPTO_PAYMENT_ENABLED")
+    POLYGON_RPC_URL: str = Field(
+        default="https://polygon-rpc.com", env="POLYGON_RPC_URL"
+    )
+    # Circle USDC on Polygon PoS.
+    USDC_CONTRACT_ADDRESS: str = Field(
+        default="0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+        env="USDC_CONTRACT_ADDRESS",
+    )
+    GAS_SPONSOR_ENABLED: bool = Field(default=False, env="GAS_SPONSOR_ENABLED")
+
+    # IPQS geo-restriction (jurisdiction enforcement)
+    IPQS_ENABLED: bool = Field(default=False, env="IPQS_ENABLED")
+    IPQS_API_KEY: Optional[str] = Field(default=None, env="IPQS_API_KEY")
+    ALLOWED_JURISDICTIONS: List[str] = Field(
+        default=["MA"], env="ALLOWED_JURISDICTIONS"
+    )
+
+    @validator("ALLOWED_JURISDICTIONS", pre=True)
+    def parse_jurisdictions(cls, v):
+        """Parse allowed jurisdictions from comma-separated string."""
+        if isinstance(v, str):
+            return [j.strip().upper() for j in v.split(",") if j.strip()]
+        return v
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

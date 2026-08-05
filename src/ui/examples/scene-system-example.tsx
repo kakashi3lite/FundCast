@@ -9,7 +9,7 @@
  * - Performance monitoring and debugging
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { 
   CompleteSceneSystemProvider,
   Scene,
@@ -58,7 +58,7 @@ const SceneSystemExampleApp: React.FC = () => {
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 const SceneNavigator: React.FC = () => {
-  const { currentScene } = useSceneSystem()
+  useSceneSystem()
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
@@ -135,7 +135,7 @@ const LandingSceneContent: React.FC = () => {
         direction="up"
         className="grid md:grid-cols-3 gap-6"
       >
-        {features.map((feature, index) => (
+        {features.map((feature) => (
           <Glass
             key={feature.title}
             intensity="medium"
@@ -252,7 +252,6 @@ const DashboardSceneContent: React.FC = () => {
 
 const MarketsSceneContent: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('all')
   
   const markets = [
     { id: 'tesla-q4', name: 'Tesla Q4 Revenue > $25B', category: 'earnings', price: 0.72 },
@@ -329,12 +328,10 @@ const MarketsSceneContent: React.FC = () => {
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 const MarketDetailSceneContent: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('overview')
-  
   return (
     <div className="container mx-auto px-6 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Tesla Q4 Revenue > $25B</h1>
+        <h1 className="text-3xl font-bold mb-2">Tesla Q4 Revenue {'>'} $25B</h1>
         <p className="text-gray-600">Earnings prediction market</p>
       </div>
       

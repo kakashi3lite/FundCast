@@ -11,8 +11,7 @@
  * This is the complete playbook for market domination in action.
  */
 
-import React, { useState, useEffect, useMemo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import React, { useState } from 'react'
 import { 
   CompleteSceneSystemProvider,
   Scene,
@@ -21,7 +20,6 @@ import {
   FUNDCAST_SCENES
 } from '../lib'
 import {
-  DopamineTrigger,
   NearMissDetector,
   LiveSocialFeed,
   StreakTracker,
@@ -70,7 +68,7 @@ const MarketDominationDemo: React.FC = () => {
 // ═══════════════════════════════════════════════════════════════════════════════════
 
 const MarketDominationScenes: React.FC = () => {
-  const { currentScene } = useSceneSystem()
+  useSceneSystem()
   
   // Extended scene definitions for gambling psychology
   const gamblingScenes = {
@@ -131,7 +129,7 @@ const MarketDominationScenes: React.FC = () => {
         focusManagement: 'auto'
       }
     }
-  }
+  } as const
   
   return (
     <>
@@ -164,7 +162,7 @@ const MarketDominationScenes: React.FC = () => {
 
 const ExclusiveAccessScene: React.FC = () => {
   const { transition } = useSceneSystem()
-  const [hasAccess, setHasAccess] = useState(false)
+  const [, setHasAccess] = useState(false)
   
   const handleJoinWaitlist = () => {
     // Track conversion
@@ -298,7 +296,7 @@ const GamblingDashboardScene: React.FC = () => {
             <h3 className="text-xl font-bold text-white mb-4">🔥 Live Prediction</h3>
             <div className="bg-gradient-to-r from-blue-900 to-purple-900 p-6 rounded-lg">
               <div className="text-lg text-white mb-4">
-                Will OpenAI's next funding round be valued at >$150B?
+                Will OpenAI's next funding round be valued at {'>'}$150B?
               </div>
               
               {!predictionOutcome ? (

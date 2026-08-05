@@ -85,40 +85,64 @@
 
 ---
 
-## Checkpoint 5: Forecast Markets ✅
-**Date**: 2025-08-22  
+## Checkpoint 5: Forecast Markets 🔄
+**Date**: 2025-08-22 → revised 2026-08-06  
+**Status**: **IN PROGRESS** (router + AMM math present; engines not built)  
+**Commit Hash**: TBD  
+
+### Implemented
+- [x] Market model: binary, categorical, and scalar market types
+- [x] Market CRUD + order request models
+- [x] AMM constant-product price math (`calculate_amm_price`)
+- [x] Probability calculation from share balances
+- [x] Accredited-investor gate for restricted markets
+
+### Pending (not yet implemented)
+- [ ] Order book engine (matching, depth, cancellations)
+- [ ] AMM settlement engine
+- [ ] Market resolution + settlement jobs
+- [ ] Cash-out mechanisms
+- [ ] Real-time analytics pipeline
+
+> ⚠️ The previous claim of a "COMPLETED dual-engine trading system" was
+> aspirational. The order book and settlement engines do not exist yet.
+
+---
+
+## Checkpoint 5.5: Structural Repair & Frontend Build 🔄
+**Date**: 2026-08-06  
 **Status**: **COMPLETED**  
 **Commit Hash**: TBD  
 
 ### Completed
-- [x] Dual market engine (Order book + AMM) architecture
-- [x] Market types: Binary, categorical, and scalar markets
-- [x] Trading system with market and limit orders
-- [x] Position tracking with P&L calculations
-- [x] Market resolution and settlement logic
-- [x] Risk management with position limits
-- [x] Real-time market statistics and analytics
-
-### Trading Features
-- **Dual Engines**: Order book and AMM support with configuration
-- **Market Access**: Accredited investor controls for restricted markets
-- **Order Management**: Market and limit orders with validation
-- **Risk Controls**: Position limits and balance verification
-- **Settlement**: Admin-controlled resolution with audit trails
+- [x] Implemented 5 missing security modules (behavioral, adversarial, incident response, red team, market integrity)
+- [x] Fixed broken imports across security + subscriptions modules
+- [x] Converted subscriptions to async SQLAlchemy 2.0
+- [x] Fixed database type mismatches (`Decimal`) + reserved `metadata` columns
+- [x] Replaced fraudulent `package.json`; added Vite build config
+- [x] Implemented 9 frontend lib modules (scene system, engagement, realtime, testing)
+- [x] Production build passing (`tsc` clean, 398 modules bundled)
+- [x] App boots: 53 routes
 
 ---
 
-## Checkpoint 6: Frontend & UI
-**Date**: TBD  
-**Status**: Pending  
+## Checkpoint 6: Frontend & UI 🟡
+**Date**: 2026-08-06  
+**Status**: **PARTIALLY COMPLETE** (Vite + React build passes; polish pending)  
 **Commit Hash**: TBD  
 
-### Planned
-- [ ] Next.js application setup
-- [ ] Lightweight Charts integration
-- [ ] Responsive design components
-- [ ] WebSocket real-time updates
-- [ ] Progressive Web App features
+### Completed
+- [x] React + TypeScript + Tailwind + Framer Motion shell
+- [x] Scene System (SST) with transitions, telemetry, inspector
+- [x] Engagement libs (streaks, social feed, VIP, referral/leaderboard)
+- [x] Home + Pricing pages, Featured Founders, Purple pricing
+- [x] Production build pipeline (Vite)
+
+### Pending
+- [ ] WebSocket real-time wiring in pages (lib present)
+- [ ] Chart components for market detail
+- [ ] PWA / offline support
+- [ ] End-to-end auth flows in UI
 
 ---
 

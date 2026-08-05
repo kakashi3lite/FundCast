@@ -3,8 +3,8 @@ Subscription Service - Main business logic for subscription management
 """
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, desc, and_
 
 from .models import (
     SubscriptionTier, UserSubscription, PurpleFeaturingSchedule,
@@ -17,7 +17,7 @@ from .featuring import PurpleFeaturingService
 class SubscriptionService:
     """Main service for subscription management"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
         self.payment_client = LemonSqueezyClient()
         self.featuring_service = PurpleFeaturingService(db)
@@ -25,21 +25,27 @@ class SubscriptionService:
     async def get_available_tiers(self, include_inactive: bool = False) -> List[Dict]:
         """Get all available subscription tiers with pricing"""
         
-        query = self.db.query(SubscriptionTier)
+        stmt = select(SubscriptionTier)
         
         if not include_inactive:
-            query = query.filter(SubscriptionTier.is_active == True)
+            stmt = stmt.where(SubscriptionTier.is_active == True)
         
-        tiers = query.order_by(SubscriptionTier.display_order).all()
+        result = await self.db.execute(stmt.order_by(SubscriptionTier.display_order))
+        tiers = result.scalars().all()
         return SubscriptionPricing.get_tier_comparison(tiers)
     
     async def get_user_subscription(self, user_id: str) -> Optional[Dict]:
         """Get user's current active subscription"""
         
-        subscription = self.db.query(UserSubscription).join(SubscriptionTier).filter(
-            UserSubscription.user_id == user_id,
-            UserSubscription.status == SubscriptionStatus.ACTIVE
-        ).first()
+        result = await self.db.execute(
+            select(UserSubscription)
+            .join(SubscriptionTier)
+            .where(
+                UserSubscription.user_id == user_id,
+                UserSubscription.status == SubscriptionStatus.ACTIVE,
+            )
+        )
+        subscription = result.scalars().first()
         
         if not subscription:
             return None
@@ -94,19 +100,21 @@ class SubscriptionService:
         """Create checkout session for new subscription"""
         
         # Validate tier exists
-        tier = self.db.query(SubscriptionTier).filter(
+        result = await self.db.execute(select(SubscriptionTier).where(
             SubscriptionTier.slug == tier_slug,
-            SubscriptionTier.is_active == True
-        ).first()
+            SubscriptionTier.is_active == True,
+        ))
+        tier = result.scalars().first()
         
         if not tier:
             raise ValueError(f"Invalid subscription tier: {tier_slug}")
         
         # Check if user already has active subscription
-        existing_subscription = self.db.query(UserSubscription).filter(
+        existing_result = await self.db.execute(select(UserSubscription).where(
             UserSubscription.user_id == user_id,
-            UserSubscription.status == SubscriptionStatus.ACTIVE
-        ).first()
+            UserSubscription.status == SubscriptionStatus.ACTIVE,
+        ))
+        existing_subscription = existing_result.scalars().first()
         
         if existing_subscription:
             raise ValueError("User already has an active subscription")
@@ -144,18 +152,20 @@ class SubscriptionService:
     ) -> Dict:
         """Upgrade user's subscription to a higher tier"""
         
-        current_subscription = self.db.query(UserSubscription).filter(
+        current_result = await self.db.execute(select(UserSubscription).where(
             UserSubscription.user_id == user_id,
-            UserSubscription.status == SubscriptionStatus.ACTIVE
-        ).first()
+            UserSubscription.status == SubscriptionStatus.ACTIVE,
+        ))
+        current_subscription = current_result.scalars().first()
         
         if not current_subscription:
             raise ValueError("No active subscription found")
         
-        new_tier = self.db.query(SubscriptionTier).filter(
+        new_tier_result = await self.db.execute(select(SubscriptionTier).where(
             SubscriptionTier.slug == new_tier_slug,
-            SubscriptionTier.is_active == True
-        ).first()
+            SubscriptionTier.is_active == True,
+        ))
+        new_tier = new_tier_result.scalars().first()
         
         if not new_tier:
             raise ValueError(f"Invalid tier: {new_tier_slug}")
@@ -185,7 +195,7 @@ class SubscriptionService:
             current_subscription.home_featuring_enabled = True
             await self.featuring_service.enable_user_featuring(user_id)
         
-        self.db.commit()
+        await self.db.commit()
         
         return {
             "success": True,
@@ -203,10 +213,11 @@ class SubscriptionService:
     ) -> Dict:
         """Cancel user's subscription"""
         
-        subscription = self.db.query(UserSubscription).filter(
+        subscription_result = await self.db.execute(select(UserSubscription).where(
             UserSubscription.user_id == user_id,
-            UserSubscription.status == SubscriptionStatus.ACTIVE
-        ).first()
+            UserSubscription.status == SubscriptionStatus.ACTIVE,
+        ))
+        subscription = subscription_result.scalars().first()
         
         if not subscription:
             raise ValueError("No active subscription found")
@@ -228,7 +239,7 @@ class SubscriptionService:
             # Cancel at end of billing period
             subscription.home_featuring_enabled = False  # Disable featuring immediately
         
-        self.db.commit()
+        await self.db.commit()
         
         return {
             "success": True,
@@ -241,11 +252,12 @@ class SubscriptionService:
     async def reactivate_subscription(self, user_id: str) -> Dict:
         """Reactivate a canceled subscription"""
         
-        subscription = self.db.query(UserSubscription).filter(
+        subscription_result = await self.db.execute(select(UserSubscription).where(
             UserSubscription.user_id == user_id,
             UserSubscription.status == SubscriptionStatus.CANCELED,
-            UserSubscription.current_period_end > datetime.utcnow()  # Still in grace period
-        ).first()
+            UserSubscription.current_period_end > datetime.utcnow(),  # Still in grace period
+        ))
+        subscription = subscription_result.scalars().first()
         
         if not subscription:
             raise ValueError("No reactivatable subscription found")
@@ -266,7 +278,7 @@ class SubscriptionService:
             subscription.home_featuring_enabled = True
             await self.featuring_service.enable_user_featuring(user_id)
         
-        self.db.commit()
+        await self.db.commit()
         
         return {
             "success": True,
@@ -281,10 +293,11 @@ class SubscriptionService:
     ) -> Dict:
         """Change billing cycle (monthly <-> annual)"""
         
-        subscription = self.db.query(UserSubscription).filter(
+        subscription_result = await self.db.execute(select(UserSubscription).where(
             UserSubscription.user_id == user_id,
-            UserSubscription.status == SubscriptionStatus.ACTIVE
-        ).first()
+            UserSubscription.status == SubscriptionStatus.ACTIVE,
+        ))
+        subscription = subscription_result.scalars().first()
         
         if not subscription:
             raise ValueError("No active subscription found")
@@ -304,7 +317,7 @@ class SubscriptionService:
         )
         
         subscription.updated_at = datetime.utcnow()
-        self.db.commit()
+        await self.db.commit()
         
         return {
             "success": True,
@@ -318,25 +331,28 @@ class SubscriptionService:
     async def get_subscription_analytics(self, user_id: str, days: int = 30) -> Dict:
         """Get subscription and featuring analytics for user"""
         
-        subscription = self.db.query(UserSubscription).filter(
+        subscription_result = await self.db.execute(select(UserSubscription).where(
             UserSubscription.user_id == user_id
-        ).first()
+        ))
+        subscription = subscription_result.scalars().first()
         
         if not subscription:
             return {"error": "No subscription found"}
         
         # Get featuring analytics
         start_date = datetime.utcnow() - timedelta(days=days)
-        analytics = self.db.query(FeaturingAnalytics).filter(
+        analytics_result = await self.db.execute(select(FeaturingAnalytics).where(
             FeaturingAnalytics.user_id == user_id,
-            FeaturingAnalytics.date >= start_date
-        ).all()
+            FeaturingAnalytics.date >= start_date,
+        ))
+        analytics = analytics_result.scalars().all()
         
         # Get featuring schedules
-        featuring_schedules = self.db.query(PurpleFeaturingSchedule).filter(
+        schedules_result = await self.db.execute(select(PurpleFeaturingSchedule).where(
             PurpleFeaturingSchedule.user_id == user_id,
-            PurpleFeaturingSchedule.scheduled_start >= start_date
-        ).all()
+            PurpleFeaturingSchedule.scheduled_start >= start_date,
+        ))
+        featuring_schedules = schedules_result.scalars().all()
         
         # Aggregate metrics
         total_impressions = sum(a.home_impressions for a in analytics)
@@ -381,29 +397,40 @@ class SubscriptionService:
     async def get_purple_featuring_queue(self, user_id: str) -> Dict:
         """Get user's Purple featuring queue and schedule"""
         
-        subscription = self.db.query(UserSubscription).filter(
+        subscription_result = await self.db.execute(select(UserSubscription).where(
             UserSubscription.user_id == user_id,
-            UserSubscription.status == SubscriptionStatus.ACTIVE
-        ).first()
+            UserSubscription.status == SubscriptionStatus.ACTIVE,
+        ))
+        subscription = subscription_result.scalars().first()
         
         if not subscription or not subscription.is_purple_tier:
             return {"error": "Purple tier subscription required"}
         
         # Get upcoming featuring schedules
-        upcoming_schedules = self.db.query(PurpleFeaturingSchedule).filter(
-            PurpleFeaturingSchedule.user_id == user_id,
-            PurpleFeaturingSchedule.scheduled_start > datetime.utcnow(),
-            PurpleFeaturingSchedule.status.in_(["scheduled", "active"])
-        ).order_by(PurpleFeaturingSchedule.scheduled_start).all()
+        upcoming_result = await self.db.execute(
+            select(PurpleFeaturingSchedule)
+            .where(
+                PurpleFeaturingSchedule.user_id == user_id,
+                PurpleFeaturingSchedule.scheduled_start > datetime.utcnow(),
+                PurpleFeaturingSchedule.status.in_(["scheduled", "active"]),
+            )
+            .order_by(PurpleFeaturingSchedule.scheduled_start)
+        )
+        upcoming_schedules = upcoming_result.scalars().all()
         
         # Calculate queue position for hero featuring
         next_hero_slot = datetime.utcnow().replace(hour=0, minute=0, second=0) + timedelta(days=1)
         
-        hero_queue = self.db.query(PurpleFeaturingSchedule).filter(
-            PurpleFeaturingSchedule.featuring_type == "hero",
-            PurpleFeaturingSchedule.scheduled_start >= next_hero_slot,
-            PurpleFeaturingSchedule.status == "scheduled"
-        ).order_by(PurpleFeaturingSchedule.scheduled_start).all()
+        hero_result = await self.db.execute(
+            select(PurpleFeaturingSchedule)
+            .where(
+                PurpleFeaturingSchedule.featuring_type == "hero",
+                PurpleFeaturingSchedule.scheduled_start >= next_hero_slot,
+                PurpleFeaturingSchedule.status == "scheduled",
+            )
+            .order_by(PurpleFeaturingSchedule.scheduled_start)
+        )
+        hero_queue = hero_result.scalars().all()
         
         user_hero_position = None
         for i, featuring in enumerate(hero_queue):
@@ -444,11 +471,12 @@ class SubscriptionService:
     ) -> Dict:
         """Update custom content for a scheduled featuring"""
         
-        featuring = self.db.query(PurpleFeaturingSchedule).filter(
+        featuring_result = await self.db.execute(select(PurpleFeaturingSchedule).where(
             PurpleFeaturingSchedule.id == featuring_id,
             PurpleFeaturingSchedule.user_id == user_id,
-            PurpleFeaturingSchedule.status == "scheduled"
-        ).first()
+            PurpleFeaturingSchedule.status == "scheduled",
+        ))
+        featuring = featuring_result.scalars().first()
         
         if not featuring:
             raise ValueError("Featuring not found or cannot be modified")
@@ -464,7 +492,7 @@ class SubscriptionService:
             featuring.cta_text = cta_text[:100]
         
         featuring.updated_at = datetime.utcnow()
-        self.db.commit()
+        await self.db.commit()
         
         return {
             "success": True,
@@ -482,27 +510,35 @@ class SubscriptionService:
         
         # This would include admin authorization check
         
-        total_subscriptions = self.db.query(UserSubscription).count()
-        active_subscriptions = self.db.query(UserSubscription).filter(
-            UserSubscription.status == SubscriptionStatus.ACTIVE
-        ).count()
+        total_subscriptions = (await self.db.execute(
+            select(func.count()).select_from(UserSubscription)
+        )).scalar()
+        active_subscriptions = (await self.db.execute(
+            select(func.count()).select_from(UserSubscription).where(
+                UserSubscription.status == SubscriptionStatus.ACTIVE
+            )
+        )).scalar()
         
         # Count by tier
         tier_counts = {}
-        tiers = self.db.query(SubscriptionTier).all()
+        tiers_result = await self.db.execute(select(SubscriptionTier))
+        tiers = tiers_result.scalars().all()
         
         for tier in tiers:
-            count = self.db.query(UserSubscription).filter(
-                UserSubscription.tier_id == tier.id,
-                UserSubscription.status == SubscriptionStatus.ACTIVE
-            ).count()
+            count = (await self.db.execute(
+                select(func.count()).select_from(UserSubscription).where(
+                    UserSubscription.tier_id == tier.id,
+                    UserSubscription.status == SubscriptionStatus.ACTIVE,
+                )
+            )).scalar()
             tier_counts[tier.name] = count
         
         # Revenue metrics (last 30 days)
         last_30_days = datetime.utcnow() - timedelta(days=30)
-        recent_subscriptions = self.db.query(UserSubscription).filter(
+        recent_result = await self.db.execute(select(UserSubscription).where(
             UserSubscription.created_at >= last_30_days
-        ).all()
+        ))
+        recent_subscriptions = recent_result.scalars().all()
         
         monthly_revenue = sum(sub.get_price_paid() for sub in recent_subscriptions)
         
@@ -512,8 +548,10 @@ class SubscriptionService:
             "tier_distribution": tier_counts,
             "monthly_revenue": monthly_revenue,
             "purple_members": tier_counts.get("Purple", 0) + tier_counts.get("Kingmaker", 0),
-            "featuring_enabled": self.db.query(UserSubscription).filter(
-                UserSubscription.home_featuring_enabled == True
-            ).count(),
+            "featuring_enabled": (await self.db.execute(
+                select(func.count()).select_from(UserSubscription).where(
+                    UserSubscription.home_featuring_enabled == True
+                )
+            )).scalar(),
             "generated_at": datetime.utcnow().isoformat()
         }
